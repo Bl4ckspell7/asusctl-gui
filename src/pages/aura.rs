@@ -1,8 +1,8 @@
+use adw::prelude::*;
+use gtk4::glib;
 use gtk4::prelude::*;
 use gtk4::subclass::prelude::*;
-use gtk4::glib;
 use libadwaita as adw;
-use adw::prelude::*;
 
 mod imp {
     use super::*;
@@ -61,9 +61,7 @@ impl AuraPage {
             .title("Keyboard Brightness")
             .build();
 
-        let brightness_row = adw::ActionRow::builder()
-            .title("Brightness Level")
-            .build();
+        let brightness_row = adw::ActionRow::builder().title("Brightness Level").build();
 
         // Brightness buttons
         let brightness_box = gtk4::Box::builder()
@@ -118,9 +116,7 @@ impl AuraPage {
         self.append(&mode_group);
 
         // Color selection group
-        let color_group = adw::PreferencesGroup::builder()
-            .title("Color")
-            .build();
+        let color_group = adw::PreferencesGroup::builder().title("Color").build();
 
         let color_row = adw::ActionRow::builder()
             .title("Lighting Color")

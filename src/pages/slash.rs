@@ -1,8 +1,8 @@
+use adw::prelude::*;
+use gtk4::glib;
 use gtk4::prelude::*;
 use gtk4::subclass::prelude::*;
-use gtk4::glib;
 use libadwaita as adw;
-use adw::prelude::*;
 
 mod imp {
     use super::*;
@@ -66,9 +66,7 @@ impl SlashPage {
         self.append(&description);
 
         // Power group
-        let power_group = adw::PreferencesGroup::builder()
-            .title("Power")
-            .build();
+        let power_group = adw::PreferencesGroup::builder().title("Power").build();
 
         let enable_row = adw::SwitchRow::builder()
             .title("Enable Slash Lighting")
@@ -79,13 +77,9 @@ impl SlashPage {
         self.append(&power_group);
 
         // Brightness group
-        let brightness_group = adw::PreferencesGroup::builder()
-            .title("Brightness")
-            .build();
+        let brightness_group = adw::PreferencesGroup::builder().title("Brightness").build();
 
-        let brightness_row = adw::ActionRow::builder()
-            .title("Brightness Level")
-            .build();
+        let brightness_row = adw::ActionRow::builder().title("Brightness Level").build();
 
         let brightness_scale = gtk4::Scale::builder()
             .orientation(gtk4::Orientation::Horizontal)

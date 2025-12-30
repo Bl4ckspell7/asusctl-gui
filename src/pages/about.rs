@@ -1,8 +1,8 @@
+use adw::prelude::*;
+use gtk4::glib;
 use gtk4::prelude::*;
 use gtk4::subclass::prelude::*;
-use gtk4::glib;
 use libadwaita as adw;
-use adw::prelude::*;
 
 mod imp {
     use super::*;

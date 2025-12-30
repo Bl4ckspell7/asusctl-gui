@@ -1,8 +1,8 @@
+use adw::prelude::*;
+use gtk4::glib;
 use gtk4::prelude::*;
 use gtk4::subclass::prelude::*;
-use gtk4::glib;
 use libadwaita as adw;
-use adw::prelude::*;
 
 mod imp {
     use super::*;
@@ -62,9 +62,21 @@ impl ProfilePage {
             .build();
 
         let profiles = [
-            ("Quiet", "power-profile-power-saver-symbolic", "Reduced fan noise, lower performance"),
-            ("Balanced", "power-profile-balanced-symbolic", "Balance between performance and noise"),
-            ("Performance", "power-profile-performance-symbolic", "Maximum performance"),
+            (
+                "Quiet",
+                "power-profile-power-saver-symbolic",
+                "Reduced fan noise, lower performance",
+            ),
+            (
+                "Balanced",
+                "power-profile-balanced-symbolic",
+                "Balance between performance and noise",
+            ),
+            (
+                "Performance",
+                "power-profile-performance-symbolic",
+                "Maximum performance",
+            ),
         ];
 
         // Create first radio button as the group leader
@@ -107,7 +119,11 @@ impl ProfilePage {
 
         let ac_combo = adw::ComboRow::builder()
             .title("Power Profile")
-            .model(&gtk4::StringList::new(&["Quiet", "Balanced", "Performance"]))
+            .model(&gtk4::StringList::new(&[
+                "Quiet",
+                "Balanced",
+                "Performance",
+            ]))
             .selected(2) // Performance by default on AC
             .build();
 
@@ -122,7 +138,11 @@ impl ProfilePage {
 
         let battery_combo = adw::ComboRow::builder()
             .title("Power Profile")
-            .model(&gtk4::StringList::new(&["Quiet", "Balanced", "Performance"]))
+            .model(&gtk4::StringList::new(&[
+                "Quiet",
+                "Balanced",
+                "Performance",
+            ]))
             .selected(0) // Quiet by default on battery
             .build();
 
