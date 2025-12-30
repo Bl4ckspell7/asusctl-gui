@@ -115,21 +115,6 @@ impl AsusctlGuiWindow {
             .child(&sidebar_list)
             .build();
 
-        // Create sidebar toolbar view with header
-        let sidebar_header = adw::HeaderBar::builder()
-            .title_widget(&gtk4::Label::new(Some("asusctl")))
-            .build();
-
-        let sidebar_toolbar = adw::ToolbarView::new();
-        sidebar_toolbar.add_top_bar(&sidebar_header);
-        sidebar_toolbar.set_content(Some(&sidebar_scroll));
-
-        // Create sidebar navigation page
-        let sidebar_page = adw::NavigationPage::builder()
-            .title("asusctl")
-            .child(&sidebar_toolbar)
-            .build();
-
         // Create hamburger menu
         let menu = gio::Menu::new();
         menu.append(Some("About asusctl-gui"), Some("app.about"));
@@ -141,9 +126,24 @@ impl AsusctlGuiWindow {
             .tooltip_text("Main Menu")
             .build();
 
-        // Create content toolbar view with header
-        let content_header = adw::HeaderBar::new();
-        content_header.pack_end(&menu_button);
+        // Create sidebar toolbar view with header
+        let sidebar_header = adw::HeaderBar::builder()
+            .title_widget(&gtk4::Label::new(Some("asusctl-gui")))
+            .build();
+        sidebar_header.pack_end(&menu_button);
+
+        let sidebar_toolbar = adw::ToolbarView::new();
+        sidebar_toolbar.add_top_bar(&sidebar_header);
+        sidebar_toolbar.set_content(Some(&sidebar_scroll));
+
+        // Create sidebar navigation page
+        let sidebar_page = adw::NavigationPage::builder()
+            .title("asusctl")
+            .child(&sidebar_toolbar)
+            .build();
+
+        // Create content toolbar view with header (no menu button here anymore)
+        let content_header = adw::HeaderBar::builder().show_title(false).build();
 
         // Wrap stack in a scrolled window to allow content scrolling
         let content_scroll = gtk4::ScrolledWindow::builder()
