@@ -43,7 +43,7 @@ glib::wrapper! {
 impl AsusctlGuiApp {
     pub fn new() -> Self {
         glib::Object::builder()
-            .property("application-id", "com.github.asusctl-gui")
+            .property("application-id", "com.github.bl4ckspell7.asusctl-gui")
             .build()
     }
 }
