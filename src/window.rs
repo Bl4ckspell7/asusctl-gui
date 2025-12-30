@@ -117,7 +117,7 @@ impl AsusctlGuiWindow {
 
         // Create hamburger menu
         let menu = gio::Menu::new();
-        menu.append(Some("About asusctl-gui"), Some("app.about"));
+        menu.append(Some("About asusctl-gui"), Some("win.about"));
 
         let menu_button = gtk4::MenuButton::builder()
             .icon_name("open-menu-symbolic")
@@ -190,21 +190,17 @@ impl AsusctlGuiWindow {
             window.show_about_dialog();
         });
 
-        if let Some(app) = self.application() {
-            app.add_action(&about_action);
-        }
+        self.add_action(&about_action);
     }
 
     fn show_about_dialog(&self) {
         let about = adw::AboutDialog::builder()
             .application_name("asusctl-gui")
             .application_icon("preferences-system-symbolic")
-            .developer_name("Your Name")
+            .developer_name("Bl4ckspell")
             .version("0.1.0")
-            .website("https://github.com/yourusername/asusctl-gui")
-            .issue_url("https://github.com/yourusername/asusctl-gui/issues")
+            .website("https://github.com/Bl4ckspell7")
             .license_type(gtk4::License::Gpl30)
-            .comments("A GTK4 GUI for asusctl - manage your ASUS ROG laptop")
             .build();
 
         about.present(Some(self));
