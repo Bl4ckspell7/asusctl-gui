@@ -4,5 +4,5 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-gtk4 = { version = "0.9", features = ["v4_12"] }
-libadwaita = { version = "0.7", features = ["v1_4"] }
+gtk4 = { version = "0.10.3", features = ["v4_20"] }
+libadwaita = { version = "0.8.1", features = ["v1_8"] }
