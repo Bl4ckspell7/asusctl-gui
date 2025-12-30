@@ -196,7 +196,7 @@ impl AsusctlGuiWindow {
     fn show_about_dialog(&self) {
         let about = adw::AboutDialog::builder()
             .application_name("asusctl-gui")
-            .application_icon("preferences-system-symbolic")
+            .application_icon("preferences-other-symbolic")
             .developer_name("Bl4ckspell")
             .version("0.1.0")
             .website("https://github.com/Bl4ckspell7/asusctl-gui")
