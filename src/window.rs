@@ -199,7 +199,7 @@ impl AsusctlGuiWindow {
             .application_icon("preferences-system-symbolic")
             .developer_name("Bl4ckspell")
             .version("0.1.0")
-            .website("https://github.com/Bl4ckspell7")
+            .website("https://github.com/Bl4ckspell7/asusctl-gui")
             .license_type(gtk4::License::Gpl30)
             .build();
 
