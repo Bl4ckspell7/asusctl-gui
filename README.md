@@ -27,3 +27,11 @@ cargo build --release
 ```bash
 cargo run
 ```
+
+## Acknowledgements
+
+This project was developed with assistance from Claude AI.
+
+## License
+
+GPL-3.0
