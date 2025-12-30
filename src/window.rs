@@ -117,6 +117,7 @@ impl AsusctlGuiWindow {
 
         // Create hamburger menu
         let menu = gio::Menu::new();
+        menu.append(Some("Keyboard Shortcuts"), Some("win.show-shortcuts"));
         menu.append(Some("About asusctl-gui"), Some("win.about"));
 
         let menu_button = gtk4::MenuButton::builder()
@@ -184,13 +185,29 @@ impl AsusctlGuiWindow {
     }
 
     fn setup_actions(&self) {
+        // About action
         let about_action = gio::SimpleAction::new("about", None);
         let window = self.clone();
         about_action.connect_activate(move |_, _| {
             window.show_about_dialog();
         });
-
         self.add_action(&about_action);
+
+        // Shortcuts action
+        let shortcuts_action = gio::SimpleAction::new("show-shortcuts", None);
+        let window = self.clone();
+        shortcuts_action.connect_activate(move |_, _| {
+            window.show_shortcuts_dialog();
+        });
+        self.add_action(&shortcuts_action);
+
+        // Quit action with Ctrl+Q shortcut
+        let quit_action = gio::SimpleAction::new("quit", None);
+        let window = self.clone();
+        quit_action.connect_activate(move |_, _| {
+            window.close();
+        });
+        self.add_action(&quit_action);
     }
 
     fn show_about_dialog(&self) {
@@ -204,6 +221,21 @@ impl AsusctlGuiWindow {
             .build();
 
         about.present(Some(self));
+    }
+
+    fn show_shortcuts_dialog(&self) {
+        let shortcuts = adw::ShortcutsDialog::new();
+
+        // Create section with items
+        let section = adw::ShortcutsSection::new(Some("General"));
+        section.add(adw::ShortcutsItem::new("Quit", "<Control>q"));
+        section.add(adw::ShortcutsItem::new(
+            "Keyboard Shortcuts",
+            "<Control>question",
+        ));
+
+        shortcuts.add(section);
+        shortcuts.present(Some(self));
     }
 
     fn create_nav_row(name: &str, title: &str, icon_name: &str) -> gtk4::ListBoxRow {

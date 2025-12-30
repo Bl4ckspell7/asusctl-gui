@@ -25,6 +25,11 @@ mod imp {
         fn activate(&self) {
             let obj = self.obj();
             let app: &adw::Application = obj.upcast_ref();
+
+            // Set up keyboard shortcuts
+            app.set_accels_for_action("win.quit", &["<Control>q"]);
+            app.set_accels_for_action("win.show-shortcuts", &["<Control>question"]);
+
             let window = AsusctlGuiWindow::new(app);
             window.present();
         }
