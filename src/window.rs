@@ -51,8 +51,8 @@ impl AsusctlGuiWindow {
         glib::Object::builder()
             .property("application", app)
             .property("title", "asusctl-gui")
-            .property("default-width", 800)
-            .property("default-height", 600)
+            .property("default-width", 840)
+            .property("default-height", 540)
             .build()
     }
 
