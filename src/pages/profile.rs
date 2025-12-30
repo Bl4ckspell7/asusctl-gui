@@ -67,6 +67,9 @@ impl ProfilePage {
             ("Performance", "power-profile-performance-symbolic", "Maximum performance"),
         ];
 
+        // Create first radio button as the group leader
+        let mut first_radio: Option<gtk4::CheckButton> = None;
+
         for (name, icon, description) in profiles {
             let row = adw::ActionRow::builder()
                 .title(name)
@@ -80,6 +83,14 @@ impl ProfilePage {
             let radio = gtk4::CheckButton::builder()
                 .valign(gtk4::Align::Center)
                 .build();
+
+            // Set the group for radio button behavior
+            if let Some(ref group) = first_radio {
+                radio.set_group(Some(group));
+            } else {
+                first_radio = Some(radio.clone());
+            }
+
             row.add_suffix(&radio);
             row.set_activatable_widget(Some(&radio));
 

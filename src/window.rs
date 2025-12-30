@@ -1,8 +1,9 @@
+use adw::prelude::*;
+use gtk4::gio;
+use gtk4::glib;
 use gtk4::prelude::*;
 use gtk4::subclass::prelude::*;
-use gtk4::glib;
 use libadwaita as adw;
-use adw::prelude::*;
 
 use crate::pages::{AboutPage, AuraPage, ProfilePage, SlashPage};
 
@@ -41,7 +42,8 @@ glib::wrapper! {
     pub struct AsusctlGuiWindow(ObjectSubclass<imp::AsusctlGuiWindow>)
         @extends adw::ApplicationWindow, gtk4::ApplicationWindow, gtk4::Window, gtk4::Widget,
         @implements gtk4::Accessible, gtk4::Buildable, gtk4::ConstraintTarget,
-                    gtk4::Native, gtk4::Root, gtk4::ShortcutManager;
+                    gtk4::Native, gtk4::Root, gtk4::ShortcutManager,
+                    gio::ActionGroup, gio::ActionMap;
 }
 
 impl AsusctlGuiWindow {
@@ -58,6 +60,7 @@ impl AsusctlGuiWindow {
         // Create the content stack for pages
         let stack = gtk4::Stack::builder()
             .transition_type(gtk4::StackTransitionType::Crossfade)
+            .vexpand(true)
             .build();
 
         // Add pages to stack
@@ -127,12 +130,33 @@ impl AsusctlGuiWindow {
             .child(&sidebar_toolbar)
             .build();
 
+        // Create hamburger menu
+        let menu = gio::Menu::new();
+        menu.append(Some("About asusctl-gui"), Some("app.about"));
+
+        let menu_button = gtk4::MenuButton::builder()
+            .icon_name("open-menu-symbolic")
+            .menu_model(&menu)
+            .primary(true)
+            .tooltip_text("Main Menu")
+            .build();
+
         // Create content toolbar view with header
         let content_header = adw::HeaderBar::new();
+        content_header.pack_end(&menu_button);
+
+        // Wrap stack in a scrolled window to allow content scrolling
+        let content_scroll = gtk4::ScrolledWindow::builder()
+            .hscrollbar_policy(gtk4::PolicyType::Never)
+            .vscrollbar_policy(gtk4::PolicyType::Automatic)
+            .vexpand(true)
+            .propagate_natural_height(true)
+            .child(&stack)
+            .build();
 
         let content_toolbar = adw::ToolbarView::new();
         content_toolbar.add_top_bar(&content_header);
-        content_toolbar.set_content(Some(&stack));
+        content_toolbar.set_content(Some(&content_scroll));
 
         // Create content navigation page
         let content_page = adw::NavigationPage::builder()
@@ -150,10 +174,40 @@ impl AsusctlGuiWindow {
 
         self.set_content(Some(&split_view));
 
+        // Setup about action
+        self.setup_actions();
+
         // Store references
         let imp = self.imp();
         imp.split_view.replace(Some(split_view));
         imp.stack.replace(Some(stack));
+    }
+
+    fn setup_actions(&self) {
+        let about_action = gio::SimpleAction::new("about", None);
+        let window = self.clone();
+        about_action.connect_activate(move |_, _| {
+            window.show_about_dialog();
+        });
+
+        if let Some(app) = self.application() {
+            app.add_action(&about_action);
+        }
+    }
+
+    fn show_about_dialog(&self) {
+        let about = adw::AboutDialog::builder()
+            .application_name("asusctl-gui")
+            .application_icon("preferences-system-symbolic")
+            .developer_name("Your Name")
+            .version("0.1.0")
+            .website("https://github.com/yourusername/asusctl-gui")
+            .issue_url("https://github.com/yourusername/asusctl-gui/issues")
+            .license_type(gtk4::License::Gpl30)
+            .comments("A GTK4 GUI for asusctl - manage your ASUS ROG laptop")
+            .build();
+
+        about.present(Some(self));
     }
 
     fn create_nav_row(name: &str, title: &str, icon_name: &str) -> gtk4::ListBoxRow {
