@@ -60,7 +60,8 @@ impl AsusctlGuiWindow {
         // Create the content stack for pages
         let stack = gtk4::Stack::builder()
             .transition_type(gtk4::StackTransitionType::Crossfade)
-            .vexpand(true)
+            .hhomogeneous(false)
+            .vhomogeneous(false)
             .build();
 
         // Add pages to stack
@@ -150,8 +151,6 @@ impl AsusctlGuiWindow {
         let content_scroll = gtk4::ScrolledWindow::builder()
             .hscrollbar_policy(gtk4::PolicyType::Never)
             .vscrollbar_policy(gtk4::PolicyType::Automatic)
-            .vexpand(true)
-            .propagate_natural_height(true)
             .child(&stack)
             .build();
 
