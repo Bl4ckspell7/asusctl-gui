@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+    <schema id="com.github.bl4ckspell7.asusctl-gui" path="/com/github/bl4ckspell7/asusctl-gui/">
+        <key name="color-scheme" type="s">
+            <default>'system'</default>
+            <summary>Color scheme</summary>
+            <description>The color scheme to use: 'system', 'light', or 'dark'</description>
+        </key>
+    </schema>
+</schemalist>

@@ -1,3 +1,4 @@
+use gtk4::gio;
 use gtk4::glib;
 use gtk4::prelude::*;
 use gtk4::subclass::prelude::*;
@@ -55,6 +56,7 @@ impl ThemeSwitcher {
         self.set_margin_bottom(6);
 
         let style_manager = adw::StyleManager::default();
+        let settings = gio::Settings::new("com.github.bl4ckspell7.asusctl-gui");
 
         // System button
         let system_btn = gtk4::CheckButton::builder()
@@ -82,32 +84,48 @@ impl ThemeSwitcher {
         dark_btn.add_css_class("theme-selector");
         dark_btn.add_css_class("dark");
 
-        // Set initial state
-        match style_manager.color_scheme() {
-            adw::ColorScheme::ForceLight => light_btn.set_active(true),
-            adw::ColorScheme::ForceDark => dark_btn.set_active(true),
-            _ => system_btn.set_active(true),
+        // Load saved setting and apply
+        let saved_scheme = settings.string("color-scheme");
+        match saved_scheme.as_str() {
+            "light" => {
+                light_btn.set_active(true);
+                style_manager.set_color_scheme(adw::ColorScheme::ForceLight);
+            }
+            "dark" => {
+                dark_btn.set_active(true);
+                style_manager.set_color_scheme(adw::ColorScheme::ForceDark);
+            }
+            _ => {
+                system_btn.set_active(true);
+                style_manager.set_color_scheme(adw::ColorScheme::Default);
+            }
         }
 
-        // Connect signals
-        let mgr = style_manager.clone();
+        // Connect signals with settings persistence
+        let settings_clone = settings.clone();
+        let style_mgr = style_manager.clone();
         system_btn.connect_toggled(move |btn| {
             if btn.is_active() {
-                mgr.set_color_scheme(adw::ColorScheme::Default);
+                style_mgr.set_color_scheme(adw::ColorScheme::Default);
+                let _ = settings_clone.set_string("color-scheme", "system");
             }
         });
 
-        let mgr = style_manager.clone();
+        let settings_clone = settings.clone();
+        let style_mgr = style_manager.clone();
         light_btn.connect_toggled(move |btn| {
             if btn.is_active() {
-                mgr.set_color_scheme(adw::ColorScheme::ForceLight);
+                style_mgr.set_color_scheme(adw::ColorScheme::ForceLight);
+                let _ = settings_clone.set_string("color-scheme", "light");
             }
         });
 
-        let mgr = style_manager;
+        let settings_clone = settings;
+        let style_mgr = style_manager;
         dark_btn.connect_toggled(move |btn| {
             if btn.is_active() {
-                mgr.set_color_scheme(adw::ColorScheme::ForceDark);
+                style_mgr.set_color_scheme(adw::ColorScheme::ForceDark);
+                let _ = settings_clone.set_string("color-scheme", "dark");
             }
         });
 
