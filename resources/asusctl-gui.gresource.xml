@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gresources>
+    <gresource prefix="/com/github/bl4ckspell7/asusctl-gui">
+        <file>style.css</file>
+    </gresource>
+</gresources>

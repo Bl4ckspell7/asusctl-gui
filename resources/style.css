@@ -1,0 +1,43 @@
+/* Theme Switcher Styles */
+.themeswitcher .theme-selector {
+    min-height: 44px;
+    min-width: 44px;
+    padding: 1px;
+    background-clip: content-box;
+    border-radius: 9999px;
+    box-shadow: inset 0 0 0 1px @borders;
+}
+
+.themeswitcher .theme-selector.system {
+    background: linear-gradient(-45deg, #2d2d2d 49.99%, white 50.01%);
+}
+
+.themeswitcher .theme-selector.light {
+    background-color: white;
+}
+
+.themeswitcher .theme-selector.dark {
+    background-color: #2d2d2d;
+}
+
+.themeswitcher .theme-selector:checked {
+    box-shadow: inset 0 0 0 2px @accent_bg_color;
+}
+
+.themeswitcher .theme-selector radio {
+    -gtk-icon-source: none;
+    border: none;
+    background: none;
+    box-shadow: none;
+    min-width: 12px;
+    min-height: 12px;
+    transform: translate(27px, 14px);
+    padding: 2px;
+}
+
+.themeswitcher .theme-selector radio:checked {
+    -gtk-icon-source: -gtk-icontheme("object-select-symbolic");
+    background-color: @accent_bg_color;
+    color: @accent_fg_color;
+    border-radius: 9999px;
+}

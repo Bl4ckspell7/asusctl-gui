@@ -6,3 +6,6 @@ edition = "2024"
 [dependencies]
 gtk4 = { version = "0.10.3", features = ["v4_20"] }
 libadwaita = { version = "0.8.1", features = ["v1_8"] }
+
+[build-dependencies]
+glib-build-tools = "0.21.0"

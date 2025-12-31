@@ -6,6 +6,7 @@ use gtk4::subclass::prelude::*;
 use libadwaita as adw;
 
 use crate::pages::{AboutPage, AuraPage, ProfilePage, SlashPage};
+use crate::theme_switcher::ThemeSwitcher;
 
 mod imp {
     use super::*;
@@ -118,8 +119,20 @@ impl AsusctlGuiWindow {
 
         // Create hamburger menu
         let menu = gio::Menu::new();
-        menu.append(Some("Keyboard Shortcuts"), Some("win.show-shortcuts"));
-        menu.append(Some("About asusctl-gui"), Some("win.about"));
+
+        // Theme section (custom widget placeholder)
+        let theme_section = gio::Menu::new();
+        let theme_item = gio::MenuItem::new(None, None);
+        theme_item.set_attribute_value("custom", Some(&"themeswitcher".to_variant()));
+        theme_section.append_item(&theme_item);
+        menu.append_section(None, &theme_section);
+
+        // Buttons section
+        let buttons_section = gio::Menu::new();
+        buttons_section.append(Some("Keyboard Shortcuts"), Some("win.show-shortcuts"));
+        buttons_section.append(Some("Quit"), Some("win.quit"));
+        buttons_section.append(Some("About"), Some("win.about"));
+        menu.append_section(None, &buttons_section);
 
         let menu_button = gtk4::MenuButton::builder()
             .icon_name("open-menu-symbolic")
@@ -127,6 +140,13 @@ impl AsusctlGuiWindow {
             .primary(true)
             .tooltip_text("Main Menu")
             .build();
+
+        // Add ThemeSwitcher as custom child to the popover
+        if let Some(popover) = menu_button.popover() {
+            if let Ok(popover_menu) = popover.downcast::<gtk4::PopoverMenu>() {
+                popover_menu.add_child(&ThemeSwitcher::new(), "themeswitcher");
+            }
+        }
 
         // Create sidebar toolbar view with header
         let sidebar_header = adw::HeaderBar::builder()
@@ -174,7 +194,7 @@ impl AsusctlGuiWindow {
 
         self.set_content(Some(&split_view));
 
-        // Setup about action
+        // Setup actions
         self.setup_actions();
 
         // Store references
@@ -200,7 +220,7 @@ impl AsusctlGuiWindow {
         });
         self.add_action(&shortcuts_action);
 
-        // Quit action with Ctrl+Q shortcut
+        // Quit action
         let quit_action = gio::SimpleAction::new("quit", None);
         let window = self.clone();
         quit_action.connect_activate(move |_, _| {
