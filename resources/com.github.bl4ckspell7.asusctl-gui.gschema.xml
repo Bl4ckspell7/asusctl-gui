@@ -6,5 +6,21 @@
             <summary>Color scheme</summary>
             <description>The color scheme to use: 'system', 'light', or 'dark'</description>
         </key>
+        <key name="restore-last-page" type="b">
+            <default>false</default>
+            <summary>Restore last page</summary>
+            <description>Whether to restore the last viewed page on startup instead of a fixed page</description>
+        </key>
+        <key name="startup-page" type="s">
+            <default>'about'</default>
+            <summary>Startup page</summary>
+            <description>The page to show on startup when restore-last-page is disabled. Valid
+                values: 'about', 'aura', 'profile', 'slash'</description>
+        </key>
+        <key name="last-page" type="s">
+            <default>'about'</default>
+            <summary>Last viewed page</summary>
+            <description>The last page the user was viewing (used when restore-last-page is enabled)</description>
+        </key>
     </schema>
 </schemalist>

@@ -5,7 +5,9 @@ use gtk4::prelude::*;
 use gtk4::subclass::prelude::*;
 use libadwaita as adw;
 
+use crate::page::Page;
 use crate::pages::{AboutPage, AuraPage, ProfilePage, SlashPage};
+use crate::preferences_dialog::PreferencesDialog;
 use crate::theme_switcher::ThemeSwitcher;
 
 mod imp {
@@ -17,6 +19,8 @@ mod imp {
     pub struct AsusctlGuiWindow {
         pub split_view: RefCell<Option<adw::NavigationSplitView>>,
         pub stack: RefCell<Option<gtk4::Stack>>,
+        pub sidebar_list: RefCell<Option<gtk4::ListBox>>,
+        pub settings: RefCell<Option<gio::Settings>>,
     }
 
     #[glib::object_subclass]
@@ -58,6 +62,8 @@ impl AsusctlGuiWindow {
     }
 
     fn setup_ui(&self) {
+        let settings = gio::Settings::new("com.github.bl4ckspell7.asusctl-gui");
+
         // Create the content stack for pages
         let stack = gtk4::Stack::builder()
             .transition_type(gtk4::StackTransitionType::Crossfade)
@@ -71,10 +77,14 @@ impl AsusctlGuiWindow {
         let profile_page = ProfilePage::new();
         let slash_page = SlashPage::new();
 
-        stack.add_titled(&about_page, Some("about"), "About");
-        stack.add_titled(&aura_page, Some("aura"), "Aura");
-        stack.add_titled(&profile_page, Some("profile"), "Profile");
-        stack.add_titled(&slash_page, Some("slash"), "Slash");
+        stack.add_titled(&about_page, Some(Page::About.as_str()), Page::About.title());
+        stack.add_titled(&aura_page, Some(Page::Aura.as_str()), Page::Aura.title());
+        stack.add_titled(
+            &profile_page,
+            Some(Page::Profile.as_str()),
+            Page::Profile.title(),
+        );
+        stack.add_titled(&slash_page, Some(Page::Slash.as_str()), Page::Slash.title());
 
         // Create sidebar with navigation items
         let sidebar_list = gtk4::ListBox::builder()
@@ -82,30 +92,38 @@ impl AsusctlGuiWindow {
             .css_classes(["navigation-sidebar"])
             .build();
 
-        // Add navigation rows
-        let items = [
-            ("about", "About", "computer-symbolic"),
-            ("aura", "Aura", "keyboard-brightness-symbolic"),
-            ("profile", "Profile", "power-profile-balanced-symbolic"),
-            ("slash", "Slash", "display-brightness-symbolic"),
-        ];
-
-        for (name, title, icon) in items {
-            let row = Self::create_nav_row(name, title, icon);
+        // Add navigation rows using Page enum
+        for page in Page::ALL {
+            let row = Self::create_nav_row(page);
             sidebar_list.append(&row);
         }
 
-        // Select first row by default
-        if let Some(first_row) = sidebar_list.row_at_index(0) {
-            sidebar_list.select_row(Some(&first_row));
+        // Determine startup page
+        let startup_page = if settings.boolean("restore-last-page") {
+            let last_page_str = settings.string("last-page");
+            Page::try_from(last_page_str.as_str()).unwrap_or_default()
+        } else {
+            let startup_page_str = settings.string("startup-page");
+            Page::try_from(startup_page_str.as_str()).unwrap_or_default()
+        };
+
+        // Set initial page
+        stack.set_visible_child_name(startup_page.as_str());
+
+        // Select corresponding sidebar row
+        if let Some(row) = sidebar_list.row_at_index(startup_page.index() as i32) {
+            sidebar_list.select_row(Some(&row));
         }
 
         // Connect row selection to stack page switching
         let stack_clone = stack.clone();
+        let settings_clone = settings.clone();
         sidebar_list.connect_row_selected(move |_, row| {
             if let Some(row) = row {
                 if let Some(name) = row.widget_name().as_str().strip_prefix("nav-") {
                     stack_clone.set_visible_child_name(name);
+                    // Save last viewed page
+                    let _ = settings_clone.set_string("last-page", name);
                 }
             }
         });
@@ -129,6 +147,7 @@ impl AsusctlGuiWindow {
 
         // Buttons section
         let buttons_section = gio::Menu::new();
+        buttons_section.append(Some("Preferences"), Some("win.preferences"));
         buttons_section.append(Some("Keyboard Shortcuts"), Some("win.show-shortcuts"));
         buttons_section.append(Some("Quit"), Some("win.quit"));
         buttons_section.append(Some("About"), Some("win.about"));
@@ -201,9 +220,19 @@ impl AsusctlGuiWindow {
         let imp = self.imp();
         imp.split_view.replace(Some(split_view));
         imp.stack.replace(Some(stack));
+        imp.sidebar_list.replace(Some(sidebar_list));
+        imp.settings.replace(Some(settings));
     }
 
     fn setup_actions(&self) {
+        // Preferences action
+        let preferences_action = gio::SimpleAction::new("preferences", None);
+        let window = self.clone();
+        preferences_action.connect_activate(move |_, _| {
+            window.show_preferences_dialog();
+        });
+        self.add_action(&preferences_action);
+
         // About action
         let about_action = gio::SimpleAction::new("about", None);
         let window = self.clone();
@@ -227,6 +256,11 @@ impl AsusctlGuiWindow {
             window.close();
         });
         self.add_action(&quit_action);
+    }
+
+    fn show_preferences_dialog(&self) {
+        let prefs_dialog = PreferencesDialog::new();
+        prefs_dialog.present(Some(self));
     }
 
     fn show_about_dialog(&self) {
@@ -257,7 +291,7 @@ impl AsusctlGuiWindow {
         shortcuts.present(Some(self));
     }
 
-    fn create_nav_row(name: &str, title: &str, icon_name: &str) -> gtk4::ListBoxRow {
+    fn create_nav_row(page: Page) -> gtk4::ListBoxRow {
         let hbox = gtk4::Box::builder()
             .orientation(gtk4::Orientation::Horizontal)
             .spacing(12)
@@ -267,9 +301,9 @@ impl AsusctlGuiWindow {
             .margin_end(12)
             .build();
 
-        let icon = gtk4::Image::from_icon_name(icon_name);
+        let icon = gtk4::Image::from_icon_name(page.icon());
         let label = gtk4::Label::builder()
-            .label(title)
+            .label(page.title())
             .halign(gtk4::Align::Start)
             .hexpand(true)
             .build();
@@ -279,7 +313,7 @@ impl AsusctlGuiWindow {
 
         gtk4::ListBoxRow::builder()
             .child(&hbox)
-            .name(format!("nav-{}", name))
+            .name(format!("nav-{}", page.as_str()))
             .build()
     }
 }
