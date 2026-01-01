@@ -3,7 +3,7 @@ mod preferences_dialog;
 mod theme_switcher;
 mod window;
 
-pub use pages::{AboutPage, AuraPage, ProfilePage, SlashPage};
+pub use pages::{AboutPage, AuraPage, PowerPage, SlashPage};
 pub use preferences_dialog::PreferencesDialog;
 pub use theme_switcher::ThemeSwitcher;
 pub use window::AsusctlGuiWindow;
@@ -15,18 +15,18 @@ pub enum Page {
     #[default]
     About,
     Aura,
-    Profile,
+    Power,
     Slash,
 }
 
 impl Page {
-    pub const ALL: [Page; 4] = [Page::About, Page::Aura, Page::Profile, Page::Slash];
+    pub const ALL: [Page; 4] = [Page::About, Page::Aura, Page::Power, Page::Slash];
 
     pub fn as_str(&self) -> &'static str {
         match self {
             Page::About => "about",
             Page::Aura => "aura",
-            Page::Profile => "profile",
+            Page::Power => "power",
             Page::Slash => "slash",
         }
     }
@@ -35,7 +35,7 @@ impl Page {
         match self {
             Page::About => "About",
             Page::Aura => "Aura",
-            Page::Profile => "Profile",
+            Page::Power => "Power",
             Page::Slash => "Slash",
         }
     }
@@ -44,7 +44,7 @@ impl Page {
         match self {
             Page::About => "computer-symbolic",
             Page::Aura => "keyboard-brightness-symbolic",
-            Page::Profile => "power-profile-balanced-symbolic",
+            Page::Power => "gnome-power-manager-symbolic",
             Page::Slash => "display-brightness-symbolic",
         }
     }
@@ -53,7 +53,7 @@ impl Page {
         match self {
             Page::About => 0,
             Page::Aura => 1,
-            Page::Profile => 2,
+            Page::Power => 2,
             Page::Slash => 3,
         }
     }
@@ -62,7 +62,7 @@ impl Page {
         match index {
             0 => Some(Page::About),
             1 => Some(Page::Aura),
-            2 => Some(Page::Profile),
+            2 => Some(Page::Power),
             3 => Some(Page::Slash),
             _ => None,
         }
@@ -76,7 +76,7 @@ impl TryFrom<&str> for Page {
         match s {
             "about" => Ok(Page::About),
             "aura" => Ok(Page::Aura),
-            "profile" => Ok(Page::Profile),
+            "power" => Ok(Page::Power),
             "slash" => Ok(Page::Slash),
             _ => Err(()),
         }

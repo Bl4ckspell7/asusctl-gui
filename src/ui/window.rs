@@ -5,7 +5,7 @@ use gtk4::prelude::*;
 use gtk4::subclass::prelude::*;
 use libadwaita as adw;
 
-use super::{AboutPage, AuraPage, Page, PreferencesDialog, ProfilePage, SlashPage, ThemeSwitcher};
+use super::{AboutPage, AuraPage, Page, PreferencesDialog, PowerPage, SlashPage, ThemeSwitcher};
 
 mod imp {
     use super::*;
@@ -71,15 +71,15 @@ impl AsusctlGuiWindow {
         // Add pages to stack
         let about_page = AboutPage::new();
         let aura_page = AuraPage::new();
-        let profile_page = ProfilePage::new();
+        let profile_page = PowerPage::new();
         let slash_page = SlashPage::new();
 
         stack.add_titled(&about_page, Some(Page::About.as_str()), Page::About.title());
         stack.add_titled(&aura_page, Some(Page::Aura.as_str()), Page::Aura.title());
         stack.add_titled(
             &profile_page,
-            Some(Page::Profile.as_str()),
-            Page::Profile.title(),
+            Some(Page::Power.as_str()),
+            Page::Power.title(),
         );
         stack.add_titled(&slash_page, Some(Page::Slash.as_str()), Page::Slash.title());
 

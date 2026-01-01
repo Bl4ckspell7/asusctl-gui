@@ -11,7 +11,7 @@ mod imp {
     use super::*;
 
     #[derive(Debug, Default)]
-    pub struct ProfilePage {
+    pub struct PowerPage {
         pub profile_radios: RefCell<Vec<gtk4::CheckButton>>,
         pub ac_combo: RefCell<Option<adw::ComboRow>>,
         pub battery_combo: RefCell<Option<adw::ComboRow>>,
@@ -19,13 +19,13 @@ mod imp {
     }
 
     #[glib::object_subclass]
-    impl ObjectSubclass for ProfilePage {
-        const NAME: &'static str = "ProfilePage";
-        type Type = super::ProfilePage;
+    impl ObjectSubclass for PowerPage {
+        const NAME: &'static str = "PowerPage";
+        type Type = super::PowerPage;
         type ParentType = gtk4::Box;
     }
 
-    impl ObjectImpl for ProfilePage {
+    impl ObjectImpl for PowerPage {
         fn constructed(&self) {
             self.parent_constructed();
             self.obj().setup_ui();
@@ -33,17 +33,17 @@ mod imp {
         }
     }
 
-    impl WidgetImpl for ProfilePage {}
-    impl BoxImpl for ProfilePage {}
+    impl WidgetImpl for PowerPage {}
+    impl BoxImpl for PowerPage {}
 }
 
 glib::wrapper! {
-    pub struct ProfilePage(ObjectSubclass<imp::ProfilePage>)
+    pub struct PowerPage(ObjectSubclass<imp::PowerPage>)
         @extends gtk4::Box, gtk4::Widget,
         @implements gtk4::Accessible, gtk4::Buildable, gtk4::ConstraintTarget, gtk4::Orientable;
 }
 
-impl ProfilePage {
+impl PowerPage {
     pub fn new() -> Self {
         glib::Object::builder()
             .property("orientation", gtk4::Orientation::Vertical)
@@ -267,7 +267,7 @@ impl ProfilePage {
     }
 }
 
-impl Default for ProfilePage {
+impl Default for PowerPage {
     fn default() -> Self {
         Self::new()
     }
