@@ -5,10 +5,7 @@ use gtk4::prelude::*;
 use gtk4::subclass::prelude::*;
 use libadwaita as adw;
 
-use crate::page::Page;
-use crate::pages::{AboutPage, AuraPage, ProfilePage, SlashPage};
-use crate::preferences_dialog::PreferencesDialog;
-use crate::theme_switcher::ThemeSwitcher;
+use super::{AboutPage, AuraPage, Page, PreferencesDialog, ProfilePage, SlashPage, ThemeSwitcher};
 
 mod imp {
     use super::*;

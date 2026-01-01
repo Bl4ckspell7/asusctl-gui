@@ -4,7 +4,7 @@ use gtk4::glib;
 use gtk4::subclass::prelude::*;
 use libadwaita as adw;
 
-use crate::page::Page;
+use super::Page;
 
 mod imp {
     use super::*;

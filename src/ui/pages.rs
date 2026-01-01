@@ -1,7 +1,7 @@
-pub mod about;
-pub mod aura;
-pub mod profile;
-pub mod slash;
+mod about;
+mod aura;
+mod profile;
+mod slash;
 
 pub use about::AboutPage;
 pub use aura::AuraPage;

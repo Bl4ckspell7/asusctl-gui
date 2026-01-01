@@ -3,7 +3,7 @@ use gtk4::subclass::prelude::*;
 use gtk4::{gio, glib};
 use libadwaita as adw;
 
-use crate::window::AsusctlGuiWindow;
+use crate::ui::AsusctlGuiWindow;
 
 mod imp {
     use super::*;

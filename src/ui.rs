@@ -1,3 +1,13 @@
+mod pages;
+mod preferences_dialog;
+mod theme_switcher;
+mod window;
+
+pub use pages::{AboutPage, AuraPage, ProfilePage, SlashPage};
+pub use preferences_dialog::PreferencesDialog;
+pub use theme_switcher::ThemeSwitcher;
+pub use window::AsusctlGuiWindow;
+
 use std::fmt;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]

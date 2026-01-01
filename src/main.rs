@@ -1,10 +1,6 @@
 mod app;
 mod backend;
-mod page;
-mod pages;
-mod preferences_dialog;
-mod theme_switcher;
-mod window;
+mod ui;
 
 use gtk4::gio;
 use gtk4::prelude::*;

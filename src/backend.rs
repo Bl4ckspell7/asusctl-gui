@@ -1,3 +1,3 @@
-pub mod asusctl;
+mod asusctl;
 
 pub use asusctl::*;
