@@ -16,6 +16,11 @@ mod imp {
         pub brightness_scale: RefCell<Option<gtk4::Scale>>,
         pub mode_combo: RefCell<Option<adw::ComboRow>>,
         pub interval_combo: RefCell<Option<adw::ComboRow>>,
+        pub show_on_boot: RefCell<Option<adw::SwitchRow>>,
+        pub show_on_shutdown: RefCell<Option<adw::SwitchRow>>,
+        pub show_on_sleep: RefCell<Option<adw::SwitchRow>>,
+        pub show_on_battery: RefCell<Option<adw::SwitchRow>>,
+        pub show_battery_warning: RefCell<Option<adw::SwitchRow>>,
     }
 
     #[glib::object_subclass]
@@ -215,6 +220,80 @@ impl SlashPage {
         imp.interval_combo.replace(Some(interval_combo.clone()));
         mode_group.add(&interval_combo);
         self.append(&mode_group);
+
+        // Show On Events group
+        let events_group = adw::PreferencesGroup::builder()
+            .title("Show Animation On")
+            .description("When to display slash animations")
+            .build();
+
+        // Show on boot
+        let show_on_boot = adw::SwitchRow::builder()
+            .title("Boot")
+            .subtitle("Show animation when laptop boots")
+            .build();
+        show_on_boot.connect_active_notify(|switch| {
+            if let Err(e) = backend::set_slash_show_on_boot(switch.is_active()) {
+                eprintln!("Failed to set show on boot: {}", e);
+            }
+        });
+        imp.show_on_boot.replace(Some(show_on_boot.clone()));
+        events_group.add(&show_on_boot);
+
+        // Show on shutdown
+        let show_on_shutdown = adw::SwitchRow::builder()
+            .title("Shutdown")
+            .subtitle("Show animation when laptop shuts down")
+            .build();
+        show_on_shutdown.connect_active_notify(|switch| {
+            if let Err(e) = backend::set_slash_show_on_shutdown(switch.is_active()) {
+                eprintln!("Failed to set show on shutdown: {}", e);
+            }
+        });
+        imp.show_on_shutdown.replace(Some(show_on_shutdown.clone()));
+        events_group.add(&show_on_shutdown);
+
+        // Show on sleep
+        let show_on_sleep = adw::SwitchRow::builder()
+            .title("Sleep")
+            .subtitle("Show animation when laptop sleeps")
+            .build();
+        show_on_sleep.connect_active_notify(|switch| {
+            if let Err(e) = backend::set_slash_show_on_sleep(switch.is_active()) {
+                eprintln!("Failed to set show on sleep: {}", e);
+            }
+        });
+        imp.show_on_sleep.replace(Some(show_on_sleep.clone()));
+        events_group.add(&show_on_sleep);
+
+        // Show on battery
+        let show_on_battery = adw::SwitchRow::builder()
+            .title("Battery")
+            .subtitle("Show animation when on battery power")
+            .build();
+        show_on_battery.connect_active_notify(|switch| {
+            if let Err(e) = backend::set_slash_show_on_battery(switch.is_active()) {
+                eprintln!("Failed to set show on battery: {}", e);
+            }
+        });
+        imp.show_on_battery.replace(Some(show_on_battery.clone()));
+        events_group.add(&show_on_battery);
+
+        // Show battery warning
+        let show_battery_warning = adw::SwitchRow::builder()
+            .title("Low Battery Warning")
+            .subtitle("Show animation when battery is low")
+            .build();
+        show_battery_warning.connect_active_notify(|switch| {
+            if let Err(e) = backend::set_slash_show_battery_warning(switch.is_active()) {
+                eprintln!("Failed to set show battery warning: {}", e);
+            }
+        });
+        imp.show_battery_warning
+            .replace(Some(show_battery_warning.clone()));
+        events_group.add(&show_battery_warning);
+
+        self.append(&events_group);
     }
 
     fn load_data(&self) {
@@ -282,6 +361,37 @@ impl SlashPage {
                 Err(e) => {
                     eprintln!("Failed to get slash interval: {}", e);
                 }
+            }
+        }
+
+        // Load show-on states from D-Bus
+        if let Some(switch) = imp.show_on_boot.borrow().as_ref() {
+            if let Ok(value) = backend::get_slash_show_on_boot() {
+                switch.set_active(value);
+            }
+        }
+
+        if let Some(switch) = imp.show_on_shutdown.borrow().as_ref() {
+            if let Ok(value) = backend::get_slash_show_on_shutdown() {
+                switch.set_active(value);
+            }
+        }
+
+        if let Some(switch) = imp.show_on_sleep.borrow().as_ref() {
+            if let Ok(value) = backend::get_slash_show_on_sleep() {
+                switch.set_active(value);
+            }
+        }
+
+        if let Some(switch) = imp.show_on_battery.borrow().as_ref() {
+            if let Ok(value) = backend::get_slash_show_on_battery() {
+                switch.set_active(value);
+            }
+        }
+
+        if let Some(switch) = imp.show_battery_warning.borrow().as_ref() {
+            if let Ok(value) = backend::get_slash_show_battery_warning() {
+                switch.set_active(value);
             }
         }
     }

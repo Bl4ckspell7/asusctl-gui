@@ -718,6 +718,86 @@ pub fn get_slash_mode_dbus() -> Result<u8> {
     parse_dbus_byte(&output)
 }
 
+/// Get slash ShowOnBoot via D-Bus
+pub fn get_slash_show_on_boot() -> Result<bool> {
+    let output = read_dbus_property_at(SLASH_PATH, SLASH_INTERFACE, "ShowOnBoot")?;
+    parse_dbus_bool(&output)
+}
+
+/// Get slash ShowOnShutdown via D-Bus
+pub fn get_slash_show_on_shutdown() -> Result<bool> {
+    let output = read_dbus_property_at(SLASH_PATH, SLASH_INTERFACE, "ShowOnShutdown")?;
+    parse_dbus_bool(&output)
+}
+
+/// Get slash ShowOnSleep via D-Bus
+pub fn get_slash_show_on_sleep() -> Result<bool> {
+    let output = read_dbus_property_at(SLASH_PATH, SLASH_INTERFACE, "ShowOnSleep")?;
+    parse_dbus_bool(&output)
+}
+
+/// Get slash ShowOnBattery via D-Bus
+pub fn get_slash_show_on_battery() -> Result<bool> {
+    let output = read_dbus_property_at(SLASH_PATH, SLASH_INTERFACE, "ShowOnBattery")?;
+    parse_dbus_bool(&output)
+}
+
+/// Get slash ShowBatteryWarning via D-Bus
+pub fn get_slash_show_battery_warning() -> Result<bool> {
+    let output = read_dbus_property_at(SLASH_PATH, SLASH_INTERFACE, "ShowBatteryWarning")?;
+    parse_dbus_bool(&output)
+}
+
+/// Set slash ShowOnBoot
+pub fn set_slash_show_on_boot(value: bool) -> Result<()> {
+    run_asusctl(&[
+        "slash",
+        "--show-on-boot",
+        if value { "true" } else { "false" },
+    ])?;
+    Ok(())
+}
+
+/// Set slash ShowOnShutdown
+pub fn set_slash_show_on_shutdown(value: bool) -> Result<()> {
+    run_asusctl(&[
+        "slash",
+        "--show-on-shutdown",
+        if value { "true" } else { "false" },
+    ])?;
+    Ok(())
+}
+
+/// Set slash ShowOnSleep
+pub fn set_slash_show_on_sleep(value: bool) -> Result<()> {
+    run_asusctl(&[
+        "slash",
+        "--show-on-sleep",
+        if value { "true" } else { "false" },
+    ])?;
+    Ok(())
+}
+
+/// Set slash ShowOnBattery
+pub fn set_slash_show_on_battery(value: bool) -> Result<()> {
+    run_asusctl(&[
+        "slash",
+        "--show-on-battery",
+        if value { "true" } else { "false" },
+    ])?;
+    Ok(())
+}
+
+/// Set slash ShowBatteryWarning
+pub fn set_slash_show_battery_warning(value: bool) -> Result<()> {
+    run_asusctl(&[
+        "slash",
+        "--show-battery-warning",
+        if value { "true" } else { "false" },
+    ])?;
+    Ok(())
+}
+
 // ============================================================================
 // Slash Config File Parsing
 // ============================================================================
