@@ -6,8 +6,8 @@
 //!
 //! State reading strategy:
 //! - Platform (profiles, charge limit): D-Bus via xyz.ljones.Platform
-//! - Slash: Config file at /etc/asusd/slash.ron (no D-Bus interface available)
-//! - Aura/Keyboard brightness: CLI output parsing
+//! - Slash: Config file at /etc/asusd/slash.ron (D-Bus fallback)
+//! - Aura/Keyboard brightness: D-Bus via xyz.ljones.Aura
 
 use std::fs;
 use std::process::Command;
@@ -15,14 +15,14 @@ use std::str::FromStr;
 
 // D-Bus constants
 const DBUS_DEST: &str = "xyz.ljones.Asusd";
-const DBUS_PATH: &str = "/xyz/ljones";
+const PLATFORM_PATH: &str = "/xyz/ljones";
 const PLATFORM_INTERFACE: &str = "xyz.ljones.Platform";
 
 // Aura D-Bus (keyboard lighting)
 const AURA_PATH: &str = "/xyz/ljones/aura/19b6_4_4";
 const AURA_INTERFACE: &str = "xyz.ljones.Aura";
 
-// Slash D-Bus (LED bar) - found under aura path
+// Slash D-Bus (LED bar)
 const SLASH_PATH: &str = "/xyz/ljones/aura/193b_5_5";
 const SLASH_INTERFACE: &str = "xyz.ljones.Slash";
 
@@ -50,8 +50,8 @@ impl std::fmt::Display for AsusctlError {
         match self {
             Self::NotInstalled => write!(f, "asusctl is not installed"),
             Self::ServiceNotRunning => write!(f, "asusd service is not running"),
-            Self::CommandFailed(msg) => write!(f, "Command failed: {}", msg),
-            Self::ParseError(msg) => write!(f, "Parse error: {}", msg),
+            Self::CommandFailed(msg) => write!(f, "Command failed: {msg}"),
+            Self::ParseError(msg) => write!(f, "Parse error: {msg}"),
         }
     }
 }
@@ -94,8 +94,7 @@ impl FromStr for KeyboardBrightness {
             "med" => Ok(Self::Med),
             "high" => Ok(Self::High),
             _ => Err(AsusctlError::ParseError(format!(
-                "Unknown brightness level: {}",
-                s
+                "Unknown brightness level: {s}"
             ))),
         }
     }
@@ -132,8 +131,7 @@ impl FromStr for PowerProfile {
             "balanced" => Ok(Self::Balanced),
             "performance" => Ok(Self::Performance),
             _ => Err(AsusctlError::ParseError(format!(
-                "Unknown power profile: {}",
-                s
+                "Unknown power profile: {s}"
             ))),
         }
     }
@@ -176,290 +174,13 @@ impl FromStr for AuraMode {
             "static" => Ok(Self::Static),
             "breathe" => Ok(Self::Breathe),
             "pulse" => Ok(Self::Pulse),
-            _ => Err(AsusctlError::ParseError(format!(
-                "Unknown aura mode: {}",
-                s
-            ))),
+            _ => Err(AsusctlError::ParseError(format!("Unknown aura mode: {s}"))),
         }
     }
 }
 
 // ============================================================================
-// Supported Features (from --show-supported)
-// ============================================================================
-
-#[derive(Debug, Clone, Default)]
-pub struct SupportedFeatures {
-    pub has_aura: bool,
-    pub has_platform: bool,
-    pub has_fan_curves: bool,
-    pub has_slash: bool,
-    pub keyboard_brightness_levels: Vec<KeyboardBrightness>,
-    pub aura_modes: Vec<AuraMode>,
-    pub has_charge_control: bool,
-    pub has_throttle_policy: bool,
-}
-
-// ============================================================================
-// System Info (from --version)
-// ============================================================================
-
-#[derive(Debug, Clone, Default)]
-pub struct SystemInfo {
-    pub asusctl_version: String,
-    pub product_family: String,
-    pub board_name: String,
-}
-
-// ============================================================================
-// Command Execution Helper
-// ============================================================================
-
-fn run_asusctl(args: &[&str]) -> Result<String> {
-    let output = Command::new("asusctl").args(args).output().map_err(|e| {
-        if e.kind() == std::io::ErrorKind::NotFound {
-            AsusctlError::NotInstalled
-        } else {
-            AsusctlError::CommandFailed(e.to_string())
-        }
-    })?;
-
-    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-
-    // Check for common error patterns
-    if stderr.contains("Connection refused") || stderr.contains("asusd") {
-        return Err(AsusctlError::ServiceNotRunning);
-    }
-
-    if !output.status.success() && !stdout.is_empty() {
-        // Some commands output to stdout even on "failure"
-        // asusctl often returns non-zero but still provides useful output
-    }
-
-    Ok(stdout)
-}
-
-// ============================================================================
-// Public API Functions
-// ============================================================================
-
-/// Check if asusctl is available and asusd service is running
-pub fn check_availability() -> Result<()> {
-    run_asusctl(&["--version"])?;
-    Ok(())
-}
-
-/// Get system information (version, product family, board name)
-pub fn get_system_info() -> Result<SystemInfo> {
-    let output = run_asusctl(&["--version"])?;
-    parse_system_info(&output)
-}
-
-/// Get supported features for this laptop
-pub fn get_supported_features() -> Result<SupportedFeatures> {
-    let output = run_asusctl(&["--show-supported"])?;
-    parse_supported_features(&output)
-}
-
-/// Get current keyboard brightness level
-pub fn get_keyboard_brightness() -> Result<KeyboardBrightness> {
-    let output = run_asusctl(&["--kbd-bright"])?;
-    parse_keyboard_brightness(&output)
-}
-
-/// Set keyboard brightness level
-pub fn set_keyboard_brightness(level: KeyboardBrightness) -> Result<()> {
-    run_asusctl(&["--kbd-bright", &level.to_string()])?;
-    Ok(())
-}
-
-/// Get current profile state (active, on AC, on battery)
-pub fn get_profile_state() -> Result<ProfileState> {
-    let output = run_asusctl(&["profile", "--profile-get"])?;
-    parse_profile_state(&output)
-}
-
-/// Set the active power profile
-pub fn set_profile(profile: PowerProfile) -> Result<()> {
-    run_asusctl(&["profile", "--profile-set", &profile.to_string()])?;
-    Ok(())
-}
-
-/// Enable slash LED bar
-pub fn enable_slash() -> Result<()> {
-    run_asusctl(&["slash", "--enable"])?;
-    Ok(())
-}
-
-/// Disable slash LED bar
-pub fn disable_slash() -> Result<()> {
-    run_asusctl(&["slash", "--disable"])?;
-    Ok(())
-}
-
-/// Set slash brightness (0-255)
-pub fn set_slash_brightness(brightness: u8) -> Result<()> {
-    run_asusctl(&["slash", "--brightness", &brightness.to_string()])?;
-    Ok(())
-}
-
-// ============================================================================
-// Parsing Functions
-// ============================================================================
-
-fn parse_system_info(output: &str) -> Result<SystemInfo> {
-    let mut info = SystemInfo::default();
-
-    for line in output.lines() {
-        let line = line.trim();
-
-        if line.starts_with("asusctl version:") {
-            info.asusctl_version = line
-                .strip_prefix("asusctl version:")
-                .unwrap_or("")
-                .trim()
-                .to_string();
-        } else if line.starts_with("Product family:") {
-            info.product_family = line
-                .strip_prefix("Product family:")
-                .unwrap_or("")
-                .trim()
-                .to_string();
-        } else if line.starts_with("Board name:") {
-            info.board_name = line
-                .strip_prefix("Board name:")
-                .unwrap_or("")
-                .trim()
-                .to_string();
-        }
-    }
-
-    Ok(info)
-}
-
-fn parse_supported_features(output: &str) -> Result<SupportedFeatures> {
-    let mut features = SupportedFeatures::default();
-
-    // Parse core functions
-    if output.contains("xyz.ljones.Aura") {
-        features.has_aura = true;
-    }
-    if output.contains("xyz.ljones.Platform") {
-        features.has_platform = true;
-    }
-    if output.contains("xyz.ljones.FanCurves") {
-        features.has_fan_curves = true;
-    }
-    if output.contains("xyz.ljones.Slash") {
-        features.has_slash = true;
-    }
-
-    // Parse platform properties
-    if output.contains("ChargeControlEndThreshold") {
-        features.has_charge_control = true;
-    }
-    if output.contains("ThrottlePolicy") {
-        features.has_throttle_policy = true;
-    }
-
-    // Parse keyboard brightness levels
-    let brightness_section = extract_section(output, "Supported Keyboard Brightness:");
-    for level in ["Off", "Low", "Med", "High"] {
-        if brightness_section.contains(level) {
-            if let Ok(brightness) = KeyboardBrightness::from_str(level) {
-                features.keyboard_brightness_levels.push(brightness);
-            }
-        }
-    }
-
-    // Parse aura modes
-    let aura_section = extract_section(output, "Supported Aura Modes:");
-    for mode in ["Static", "Breathe", "Pulse"] {
-        if aura_section.contains(mode) {
-            if let Ok(aura_mode) = AuraMode::from_str(mode) {
-                features.aura_modes.push(aura_mode);
-            }
-        }
-    }
-
-    Ok(features)
-}
-
-fn parse_keyboard_brightness(output: &str) -> Result<KeyboardBrightness> {
-    // Output format: "Current keyboard led brightness: High"
-    for line in output.lines() {
-        if line.contains("Current keyboard led brightness:") {
-            let level = line
-                .split(':')
-                .nth(1)
-                .ok_or_else(|| AsusctlError::ParseError("Missing brightness value".to_string()))?
-                .trim();
-            return KeyboardBrightness::from_str(level);
-        }
-    }
-
-    Err(AsusctlError::ParseError(
-        "Could not find brightness level in output".to_string(),
-    ))
-}
-
-fn parse_profile_state(output: &str) -> Result<ProfileState> {
-    let mut state = ProfileState::default();
-
-    for line in output.lines() {
-        let line = line.trim();
-
-        if line.starts_with("Active profile is") {
-            let profile = line.strip_prefix("Active profile is").unwrap_or("").trim();
-            state.active = PowerProfile::from_str(profile)?;
-        } else if line.starts_with("Profile on AC is") {
-            let profile = line.strip_prefix("Profile on AC is").unwrap_or("").trim();
-            state.on_ac = PowerProfile::from_str(profile)?;
-        } else if line.starts_with("Profile on Battery is") {
-            let profile = line
-                .strip_prefix("Profile on Battery is")
-                .unwrap_or("")
-                .trim();
-            state.on_battery = PowerProfile::from_str(profile)?;
-        }
-    }
-
-    Ok(state)
-}
-
-/// Helper to extract a section from the output (between a header and the next header or end)
-fn extract_section(output: &str, header: &str) -> String {
-    let mut in_section = false;
-    let mut section = String::new();
-    let mut bracket_depth = 0;
-
-    for line in output.lines() {
-        if line.contains(header) {
-            in_section = true;
-            continue;
-        }
-
-        if in_section {
-            // Track bracket depth to know when section ends
-            bracket_depth += line.matches('[').count() as i32;
-            bracket_depth -= line.matches(']').count() as i32;
-
-            section.push_str(line);
-            section.push('\n');
-
-            // Section ends when we close all brackets and hit a new section
-            if bracket_depth <= 0 && line.contains(']') {
-                break;
-            }
-        }
-    }
-
-    section
-}
-
-// ============================================================================
-// Slash State
+// Slash Mode
 // ============================================================================
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -524,37 +245,74 @@ impl FromStr for SlashMode {
             "GameOver" => Ok(Self::GameOver),
             "Start" => Ok(Self::Start),
             "Buzzer" => Ok(Self::Buzzer),
-            _ => Err(AsusctlError::ParseError(format!(
-                "Unknown slash mode: {}",
-                s
-            ))),
+            _ => Err(AsusctlError::ParseError(format!("Unknown slash mode: {s}"))),
         }
     }
 }
 
+// ============================================================================
+// Supported Features (from --show-supported)
+// ============================================================================
+
 #[derive(Debug, Clone, Default)]
-pub struct SlashState {
-    pub enabled: bool,
-    pub brightness: u8,
-    pub interval: u8,
-    pub mode: SlashMode,
+pub struct SupportedFeatures {
+    pub has_aura: bool,
+    pub has_platform: bool,
+    pub has_fan_curves: bool,
+    pub has_slash: bool,
+    pub keyboard_brightness_levels: Vec<KeyboardBrightness>,
+    pub aura_modes: Vec<AuraMode>,
+    pub has_charge_control: bool,
+    pub has_throttle_policy: bool,
+}
+
+// ============================================================================
+// System Info (from --version)
+// ============================================================================
+
+#[derive(Debug, Clone, Default)]
+pub struct SystemInfo {
+    pub asusctl_version: String,
+    pub product_family: String,
+    pub board_name: String,
+}
+
+// ============================================================================
+// Command Execution Helper
+// ============================================================================
+
+fn run_asusctl(args: &[&str]) -> Result<String> {
+    let output = Command::new("asusctl").args(args).output().map_err(|e| {
+        if e.kind() == std::io::ErrorKind::NotFound {
+            AsusctlError::NotInstalled
+        } else {
+            AsusctlError::CommandFailed(e.to_string())
+        }
+    })?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+
+    // Check for common error patterns
+    if stderr.contains("Connection refused") || stderr.contains("asusd") {
+        return Err(AsusctlError::ServiceNotRunning);
+    }
+
+    // Note: asusctl often returns non-zero but still provides useful output
+    let _ = output.status.success();
+
+    Ok(stdout)
 }
 
 // ============================================================================
 // D-Bus Helper Functions
 // ============================================================================
 
-/// Read a D-Bus property using busctl (from default path /xyz/ljones)
-fn read_dbus_property(interface: &str, property: &str) -> Result<String> {
-    read_dbus_property_at(DBUS_PATH, interface, property)
-}
-
-/// Read a D-Bus property using busctl from a specific path
 fn read_dbus_property_at(path: &str, interface: &str, property: &str) -> Result<String> {
     let output = Command::new("busctl")
         .args(["get-property", DBUS_DEST, path, interface, property])
         .output()
-        .map_err(|e| AsusctlError::CommandFailed(format!("busctl failed: {}", e)))?;
+        .map_err(|e| AsusctlError::CommandFailed(format!("busctl failed: {e}")))?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -567,249 +325,153 @@ fn read_dbus_property_at(path: &str, interface: &str, property: &str) -> Result<
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
 }
 
-/// Parse a boolean property from busctl output (format: "b true" or "b false")
 fn parse_dbus_bool(output: &str) -> Result<bool> {
     let value = output
         .strip_prefix("b ")
-        .ok_or_else(|| AsusctlError::ParseError(format!("Expected boolean, got: {}", output)))?;
+        .ok_or_else(|| AsusctlError::ParseError(format!("Expected boolean, got: {output}")))?;
 
     match value {
         "true" => Ok(true),
         "false" => Ok(false),
         _ => Err(AsusctlError::ParseError(format!(
-            "Invalid boolean value: {}",
-            value
+            "Invalid boolean value: {value}"
         ))),
     }
 }
 
-/// Parse a byte property from busctl output (format: "y 255")
 fn parse_dbus_byte(output: &str) -> Result<u8> {
     let value = output
         .strip_prefix("y ")
-        .ok_or_else(|| AsusctlError::ParseError(format!("Expected byte, got: {}", output)))?;
+        .ok_or_else(|| AsusctlError::ParseError(format!("Expected byte, got: {output}")))?;
 
     value
         .parse()
-        .map_err(|_| AsusctlError::ParseError(format!("Invalid byte value: {}", value)))
+        .map_err(|_| AsusctlError::ParseError(format!("Invalid byte value: {value}")))
 }
 
-/// Parse an unsigned int property from busctl output (format: "u 2")
 fn parse_dbus_uint(output: &str) -> Result<u32> {
     let value = output
         .strip_prefix("u ")
-        .ok_or_else(|| AsusctlError::ParseError(format!("Expected uint, got: {}", output)))?;
+        .ok_or_else(|| AsusctlError::ParseError(format!("Expected uint, got: {output}")))?;
 
     value
         .parse()
-        .map_err(|_| AsusctlError::ParseError(format!("Invalid uint value: {}", value)))
+        .map_err(|_| AsusctlError::ParseError(format!("Invalid uint value: {value}")))
 }
 
 // ============================================================================
-// Platform D-Bus API (profiles, charge limit)
+// Parsing Functions
 // ============================================================================
 
-/// Get current platform profile via D-Bus (returns 0=Quiet, 1=Balanced, 2=Performance)
-pub fn get_platform_profile_dbus() -> Result<PowerProfile> {
-    let output = read_dbus_property(PLATFORM_INTERFACE, "PlatformProfile")?;
-    let value = parse_dbus_uint(&output)?;
+fn parse_system_info(output: &str) -> Result<SystemInfo> {
+    let mut info = SystemInfo::default();
 
-    match value {
-        0 => Ok(PowerProfile::Quiet),
-        1 => Ok(PowerProfile::Balanced),
-        2 => Ok(PowerProfile::Performance),
-        _ => Err(AsusctlError::ParseError(format!(
-            "Unknown profile value: {}",
-            value
-        ))),
+    for line in output.lines() {
+        let line = line.trim();
+
+        if let Some(version) = line.strip_prefix("asusctl version:") {
+            info.asusctl_version = version.trim().to_string();
+        } else if let Some(family) = line.strip_prefix("Product family:") {
+            info.product_family = family.trim().to_string();
+        } else if let Some(board) = line.strip_prefix("Board name:") {
+            info.board_name = board.trim().to_string();
+        }
     }
+
+    Ok(info)
 }
 
-/// Get charge control threshold via D-Bus
-pub fn get_charge_limit_dbus() -> Result<u8> {
-    let output = read_dbus_property(PLATFORM_INTERFACE, "ChargeControlEndThreshold")?;
-    parse_dbus_byte(&output)
-}
+fn parse_supported_features(output: &str) -> Result<SupportedFeatures> {
+    let mut features = SupportedFeatures::default();
 
-/// Get profile on AC via D-Bus
-pub fn get_profile_on_ac_dbus() -> Result<PowerProfile> {
-    let output = read_dbus_property(PLATFORM_INTERFACE, "PlatformProfileOnAc")?;
-    let value = parse_dbus_uint(&output)?;
+    // Parse core functions
+    features.has_aura = output.contains("xyz.ljones.Aura");
+    features.has_platform = output.contains("xyz.ljones.Platform");
+    features.has_fan_curves = output.contains("xyz.ljones.FanCurves");
+    features.has_slash = output.contains("xyz.ljones.Slash");
 
-    match value {
-        0 => Ok(PowerProfile::Quiet),
-        1 => Ok(PowerProfile::Balanced),
-        2 => Ok(PowerProfile::Performance),
-        _ => Err(AsusctlError::ParseError(format!(
-            "Unknown profile value: {}",
-            value
-        ))),
+    // Parse platform properties
+    features.has_charge_control = output.contains("ChargeControlEndThreshold");
+    features.has_throttle_policy = output.contains("ThrottlePolicy");
+
+    // Parse keyboard brightness levels
+    let brightness_section = extract_section(output, "Supported Keyboard Brightness:");
+    for level in ["Off", "Low", "Med", "High"] {
+        if brightness_section.contains(level) {
+            if let Ok(brightness) = KeyboardBrightness::from_str(level) {
+                features.keyboard_brightness_levels.push(brightness);
+            }
+        }
     }
-}
 
-/// Get profile on battery via D-Bus
-pub fn get_profile_on_battery_dbus() -> Result<PowerProfile> {
-    let output = read_dbus_property(PLATFORM_INTERFACE, "PlatformProfileOnBattery")?;
-    let value = parse_dbus_uint(&output)?;
-
-    match value {
-        0 => Ok(PowerProfile::Quiet),
-        1 => Ok(PowerProfile::Balanced),
-        2 => Ok(PowerProfile::Performance),
-        _ => Err(AsusctlError::ParseError(format!(
-            "Unknown profile value: {}",
-            value
-        ))),
+    // Parse aura modes
+    let aura_section = extract_section(output, "Supported Aura Modes:");
+    for mode in ["Static", "Breathe", "Pulse"] {
+        if aura_section.contains(mode) {
+            if let Ok(aura_mode) = AuraMode::from_str(mode) {
+                features.aura_modes.push(aura_mode);
+            }
+        }
     }
+
+    Ok(features)
 }
 
-/// Set charge limit (20-100)
-pub fn set_charge_limit(limit: u8) -> Result<()> {
-    run_asusctl(&["--chg-limit", &limit.to_string()])?;
-    Ok(())
-}
+fn parse_profile_state(output: &str) -> Result<ProfileState> {
+    let mut state = ProfileState::default();
 
-// ============================================================================
-// Aura D-Bus API (keyboard brightness)
-// ============================================================================
+    for line in output.lines() {
+        let line = line.trim();
 
-/// Get current keyboard brightness via D-Bus (0=Off, 1=Low, 2=Med, 3=High)
-pub fn get_keyboard_brightness_dbus() -> Result<KeyboardBrightness> {
-    let output = read_dbus_property_at(AURA_PATH, AURA_INTERFACE, "Brightness")?;
-    let value = parse_dbus_uint(&output)?;
-
-    match value {
-        0 => Ok(KeyboardBrightness::Off),
-        1 => Ok(KeyboardBrightness::Low),
-        2 => Ok(KeyboardBrightness::Med),
-        3 => Ok(KeyboardBrightness::High),
-        _ => Err(AsusctlError::ParseError(format!(
-            "Unknown brightness value: {}",
-            value
-        ))),
+        if let Some(profile) = line.strip_prefix("Active profile is") {
+            state.active = PowerProfile::from_str(profile.trim())?;
+        } else if let Some(profile) = line.strip_prefix("Profile on AC is") {
+            state.on_ac = PowerProfile::from_str(profile.trim())?;
+        } else if let Some(profile) = line.strip_prefix("Profile on Battery is") {
+            state.on_battery = PowerProfile::from_str(profile.trim())?;
+        }
     }
+
+    Ok(state)
 }
 
-// ============================================================================
-// Slash D-Bus API (LED bar)
-// ============================================================================
+/// Helper to extract a section from the output (between a header and the next header or end)
+fn extract_section(output: &str, header: &str) -> String {
+    let mut in_section = false;
+    let mut section = String::new();
+    let mut bracket_depth = 0;
 
-/// Get slash enabled state via D-Bus
-pub fn get_slash_enabled_dbus() -> Result<bool> {
-    let output = read_dbus_property_at(SLASH_PATH, SLASH_INTERFACE, "Enabled")?;
-    parse_dbus_bool(&output)
+    for line in output.lines() {
+        if line.contains(header) {
+            in_section = true;
+            continue;
+        }
+
+        if in_section {
+            // Track bracket depth to know when section ends
+            bracket_depth += line.matches('[').count() as i32;
+            bracket_depth -= line.matches(']').count() as i32;
+
+            section.push_str(line);
+            section.push('\n');
+
+            // Section ends when we close all brackets and hit a new section
+            if bracket_depth <= 0 && line.contains(']') {
+                break;
+            }
+        }
+    }
+
+    section
 }
-
-/// Get slash brightness via D-Bus (0-255)
-pub fn get_slash_brightness_dbus() -> Result<u8> {
-    let output = read_dbus_property_at(SLASH_PATH, SLASH_INTERFACE, "Brightness")?;
-    parse_dbus_byte(&output)
-}
-
-/// Get slash interval via D-Bus
-pub fn get_slash_interval_dbus() -> Result<u8> {
-    let output = read_dbus_property_at(SLASH_PATH, SLASH_INTERFACE, "Interval")?;
-    parse_dbus_byte(&output)
-}
-
-/// Get slash mode via D-Bus (returns numeric mode)
-pub fn get_slash_mode_dbus() -> Result<u8> {
-    let output = read_dbus_property_at(SLASH_PATH, SLASH_INTERFACE, "Mode")?;
-    parse_dbus_byte(&output)
-}
-
-/// Get slash ShowOnBoot via D-Bus
-pub fn get_slash_show_on_boot() -> Result<bool> {
-    let output = read_dbus_property_at(SLASH_PATH, SLASH_INTERFACE, "ShowOnBoot")?;
-    parse_dbus_bool(&output)
-}
-
-/// Get slash ShowOnShutdown via D-Bus
-pub fn get_slash_show_on_shutdown() -> Result<bool> {
-    let output = read_dbus_property_at(SLASH_PATH, SLASH_INTERFACE, "ShowOnShutdown")?;
-    parse_dbus_bool(&output)
-}
-
-/// Get slash ShowOnSleep via D-Bus
-pub fn get_slash_show_on_sleep() -> Result<bool> {
-    let output = read_dbus_property_at(SLASH_PATH, SLASH_INTERFACE, "ShowOnSleep")?;
-    parse_dbus_bool(&output)
-}
-
-/// Get slash ShowOnBattery via D-Bus
-pub fn get_slash_show_on_battery() -> Result<bool> {
-    let output = read_dbus_property_at(SLASH_PATH, SLASH_INTERFACE, "ShowOnBattery")?;
-    parse_dbus_bool(&output)
-}
-
-/// Get slash ShowBatteryWarning via D-Bus
-pub fn get_slash_show_battery_warning() -> Result<bool> {
-    let output = read_dbus_property_at(SLASH_PATH, SLASH_INTERFACE, "ShowBatteryWarning")?;
-    parse_dbus_bool(&output)
-}
-
-/// Set slash ShowOnBoot
-pub fn set_slash_show_on_boot(value: bool) -> Result<()> {
-    run_asusctl(&[
-        "slash",
-        "--show-on-boot",
-        if value { "true" } else { "false" },
-    ])?;
-    Ok(())
-}
-
-/// Set slash ShowOnShutdown
-pub fn set_slash_show_on_shutdown(value: bool) -> Result<()> {
-    run_asusctl(&[
-        "slash",
-        "--show-on-shutdown",
-        if value { "true" } else { "false" },
-    ])?;
-    Ok(())
-}
-
-/// Set slash ShowOnSleep
-pub fn set_slash_show_on_sleep(value: bool) -> Result<()> {
-    run_asusctl(&[
-        "slash",
-        "--show-on-sleep",
-        if value { "true" } else { "false" },
-    ])?;
-    Ok(())
-}
-
-/// Set slash ShowOnBattery
-pub fn set_slash_show_on_battery(value: bool) -> Result<()> {
-    run_asusctl(&[
-        "slash",
-        "--show-on-battery",
-        if value { "true" } else { "false" },
-    ])?;
-    Ok(())
-}
-
-/// Set slash ShowBatteryWarning
-pub fn set_slash_show_battery_warning(value: bool) -> Result<()> {
-    run_asusctl(&[
-        "slash",
-        "--show-battery-warning",
-        if value { "true" } else { "false" },
-    ])?;
-    Ok(())
-}
-
-// ============================================================================
-// Slash Config File Parsing
-// ============================================================================
 
 /// Parse slash config from /etc/asusd/slash.ron
 fn parse_slash_config() -> Result<SlashState> {
     let content = fs::read_to_string(SLASH_CONFIG_PATH)
-        .map_err(|e| AsusctlError::ParseError(format!("Failed to read slash config: {}", e)))?;
+        .map_err(|e| AsusctlError::ParseError(format!("Failed to read slash config: {e}")))?;
 
     let mut state = SlashState::default();
 
-    // Simple RON parsing - look for key patterns
     for line in content.lines() {
         let line = line.trim();
 
@@ -855,47 +517,149 @@ fn extract_string_value(line: &str) -> Option<String> {
 }
 
 // ============================================================================
-// Slash Public API (uses D-Bus, falls back to config file)
+// Slash State Struct
 // ============================================================================
 
-/// Get current slash state from D-Bus or config file
-pub fn get_slash_state() -> Result<SlashState> {
-    // Try D-Bus first
-    if let (Ok(enabled), Ok(brightness), Ok(interval)) = (
-        get_slash_enabled_dbus(),
-        get_slash_brightness_dbus(),
-        get_slash_interval_dbus(),
-    ) {
-        return Ok(SlashState {
-            enabled,
-            brightness,
-            interval,
-            mode: SlashMode::default(), // Mode from D-Bus is numeric, harder to map
-        });
+#[derive(Debug, Clone, Default)]
+pub struct SlashState {
+    pub enabled: bool,
+    pub brightness: u8,
+    pub interval: u8,
+    pub mode: SlashMode,
+}
+
+// ============================================================================
+// Public API - System Info
+// ============================================================================
+
+/// Get system information (version, product family, board name)
+pub fn get_system_info() -> Result<SystemInfo> {
+    let output = run_asusctl(&["--version"])?;
+    parse_system_info(&output)
+}
+
+/// Get supported features for this laptop
+pub fn get_supported_features() -> Result<SupportedFeatures> {
+    let output = run_asusctl(&["--show-supported"])?;
+    parse_supported_features(&output)
+}
+
+// ============================================================================
+// Public API - Keyboard Brightness (Aura)
+// ============================================================================
+
+/// Get current keyboard brightness via D-Bus
+pub fn get_keyboard_brightness_dbus() -> Result<KeyboardBrightness> {
+    let output = read_dbus_property_at(AURA_PATH, AURA_INTERFACE, "Brightness")?;
+    let value = parse_dbus_uint(&output)?;
+
+    match value {
+        0 => Ok(KeyboardBrightness::Off),
+        1 => Ok(KeyboardBrightness::Low),
+        2 => Ok(KeyboardBrightness::Med),
+        3 => Ok(KeyboardBrightness::High),
+        _ => Err(AsusctlError::ParseError(format!(
+            "Unknown brightness value: {value}"
+        ))),
+    }
+}
+
+/// Set keyboard brightness level
+pub fn set_keyboard_brightness(level: KeyboardBrightness) -> Result<()> {
+    run_asusctl(&["--kbd-bright", &level.to_string()])?;
+    Ok(())
+}
+
+// ============================================================================
+// Public API - Power Profiles
+// ============================================================================
+
+/// Get current profile state (active, on AC, on battery) via CLI
+pub fn get_profile_state() -> Result<ProfileState> {
+    let output = run_asusctl(&["profile", "--profile-get"])?;
+    parse_profile_state(&output)
+}
+
+/// Set the active power profile using powerprofilesctl (preferred) or asusctl (fallback)
+///
+/// Uses power-profiles-daemon when available to maintain GNOME integration.
+/// Falls back to asusctl if powerprofilesctl is not installed.
+pub fn set_profile(profile: PowerProfile) -> Result<()> {
+    // Try powerprofilesctl first for GNOME integration
+    if set_profile_ppdctl(profile).is_ok() {
+        eprintln!("[asusctl-gui] Set power profile to {profile}, using powerprofilesctl");
+        return Ok(());
     }
 
-    // Fall back to config file
-    parse_slash_config()
+    // Fall back to asusctl
+    run_asusctl(&["profile", "--profile-set", &profile.to_string()])?;
+    eprintln!("[asusctl-gui] Set power profile to {profile}, using asusctl");
+    Ok(())
 }
 
-/// Get slash enabled state (D-Bus preferred)
-pub fn get_slash_enabled() -> Result<bool> {
-    get_slash_enabled_dbus().or_else(|_| Ok(parse_slash_config()?.enabled))
+/// Set profile using powerprofilesctl
+fn set_profile_ppdctl(profile: PowerProfile) -> Result<()> {
+    let profile_name = match profile {
+        PowerProfile::Quiet => "power-saver",
+        PowerProfile::Balanced => "balanced",
+        PowerProfile::Performance => "performance",
+    };
+
+    let output = Command::new("powerprofilesctl")
+        .args(["set", profile_name])
+        .output()
+        .map_err(|e| {
+            if e.kind() == std::io::ErrorKind::NotFound {
+                AsusctlError::NotInstalled
+            } else {
+                AsusctlError::CommandFailed(e.to_string())
+            }
+        })?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(AsusctlError::CommandFailed(stderr.to_string()));
+    }
+
+    Ok(())
 }
 
-/// Get slash brightness (D-Bus preferred)
-pub fn get_slash_brightness() -> Result<u8> {
-    get_slash_brightness_dbus().or_else(|_| Ok(parse_slash_config()?.brightness))
+/// Get charge control threshold via D-Bus
+pub fn get_charge_limit_dbus() -> Result<u8> {
+    let output = read_dbus_property_at(
+        PLATFORM_PATH,
+        PLATFORM_INTERFACE,
+        "ChargeControlEndThreshold",
+    )?;
+    parse_dbus_byte(&output)
 }
 
-/// Get slash interval (D-Bus preferred)
-pub fn get_slash_interval() -> Result<u8> {
-    get_slash_interval_dbus().or_else(|_| Ok(parse_slash_config()?.interval))
+/// Set charge limit (20-100)
+pub fn set_charge_limit(limit: u8) -> Result<()> {
+    run_asusctl(&["--chg-limit", &limit.to_string()])?;
+    Ok(())
 }
 
-/// Get slash mode
-pub fn get_slash_mode() -> Result<SlashMode> {
-    Ok(parse_slash_config()?.mode)
+// ============================================================================
+// Public API - Slash (LED Bar)
+// ============================================================================
+
+/// Enable slash LED bar
+pub fn enable_slash() -> Result<()> {
+    run_asusctl(&["slash", "--enable"])?;
+    Ok(())
+}
+
+/// Disable slash LED bar
+pub fn disable_slash() -> Result<()> {
+    run_asusctl(&["slash", "--disable"])?;
+    Ok(())
+}
+
+/// Set slash brightness (0-255)
+pub fn set_slash_brightness(brightness: u8) -> Result<()> {
+    run_asusctl(&["slash", "--brightness", &brightness.to_string()])?;
+    Ok(())
 }
 
 /// Set slash mode
@@ -910,6 +674,117 @@ pub fn set_slash_interval(interval: u8) -> Result<()> {
     Ok(())
 }
 
+// Slash D-Bus getters
+
+fn get_slash_enabled_dbus() -> Result<bool> {
+    let output = read_dbus_property_at(SLASH_PATH, SLASH_INTERFACE, "Enabled")?;
+    parse_dbus_bool(&output)
+}
+
+fn get_slash_brightness_dbus() -> Result<u8> {
+    let output = read_dbus_property_at(SLASH_PATH, SLASH_INTERFACE, "Brightness")?;
+    parse_dbus_byte(&output)
+}
+
+fn get_slash_interval_dbus() -> Result<u8> {
+    let output = read_dbus_property_at(SLASH_PATH, SLASH_INTERFACE, "Interval")?;
+    parse_dbus_byte(&output)
+}
+
+/// Get slash enabled state (D-Bus preferred, config fallback)
+pub fn get_slash_enabled() -> Result<bool> {
+    get_slash_enabled_dbus().or_else(|_| Ok(parse_slash_config()?.enabled))
+}
+
+/// Get slash brightness (D-Bus preferred, config fallback)
+pub fn get_slash_brightness() -> Result<u8> {
+    get_slash_brightness_dbus().or_else(|_| Ok(parse_slash_config()?.brightness))
+}
+
+/// Get slash interval (D-Bus preferred, config fallback)
+pub fn get_slash_interval() -> Result<u8> {
+    get_slash_interval_dbus().or_else(|_| Ok(parse_slash_config()?.interval))
+}
+
+/// Get slash mode (from config file)
+pub fn get_slash_mode() -> Result<SlashMode> {
+    Ok(parse_slash_config()?.mode)
+}
+
+// Slash show-on event getters (D-Bus only)
+
+pub fn get_slash_show_on_boot() -> Result<bool> {
+    let output = read_dbus_property_at(SLASH_PATH, SLASH_INTERFACE, "ShowOnBoot")?;
+    parse_dbus_bool(&output)
+}
+
+pub fn get_slash_show_on_shutdown() -> Result<bool> {
+    let output = read_dbus_property_at(SLASH_PATH, SLASH_INTERFACE, "ShowOnShutdown")?;
+    parse_dbus_bool(&output)
+}
+
+pub fn get_slash_show_on_sleep() -> Result<bool> {
+    let output = read_dbus_property_at(SLASH_PATH, SLASH_INTERFACE, "ShowOnSleep")?;
+    parse_dbus_bool(&output)
+}
+
+pub fn get_slash_show_on_battery() -> Result<bool> {
+    let output = read_dbus_property_at(SLASH_PATH, SLASH_INTERFACE, "ShowOnBattery")?;
+    parse_dbus_bool(&output)
+}
+
+pub fn get_slash_show_battery_warning() -> Result<bool> {
+    let output = read_dbus_property_at(SLASH_PATH, SLASH_INTERFACE, "ShowBatteryWarning")?;
+    parse_dbus_bool(&output)
+}
+
+// Slash show-on event setters
+
+pub fn set_slash_show_on_boot(value: bool) -> Result<()> {
+    run_asusctl(&[
+        "slash",
+        "--show-on-boot",
+        if value { "true" } else { "false" },
+    ])?;
+    Ok(())
+}
+
+pub fn set_slash_show_on_shutdown(value: bool) -> Result<()> {
+    run_asusctl(&[
+        "slash",
+        "--show-on-shutdown",
+        if value { "true" } else { "false" },
+    ])?;
+    Ok(())
+}
+
+pub fn set_slash_show_on_sleep(value: bool) -> Result<()> {
+    run_asusctl(&[
+        "slash",
+        "--show-on-sleep",
+        if value { "true" } else { "false" },
+    ])?;
+    Ok(())
+}
+
+pub fn set_slash_show_on_battery(value: bool) -> Result<()> {
+    run_asusctl(&[
+        "slash",
+        "--show-on-battery",
+        if value { "true" } else { "false" },
+    ])?;
+    Ok(())
+}
+
+pub fn set_slash_show_battery_warning(value: bool) -> Result<()> {
+    run_asusctl(&[
+        "slash",
+        "--show-battery-warning",
+        if value { "true" } else { "false" },
+    ])?;
+    Ok(())
+}
+
 // ============================================================================
 // Tests
 // ============================================================================
@@ -917,6 +792,24 @@ pub fn set_slash_interval(interval: u8) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn parse_keyboard_brightness(output: &str) -> Result<KeyboardBrightness> {
+        for line in output.lines() {
+            if line.contains("Current keyboard led brightness:") {
+                let level = line
+                    .split(':')
+                    .nth(1)
+                    .ok_or_else(|| {
+                        AsusctlError::ParseError("Missing brightness value".to_string())
+                    })?
+                    .trim();
+                return KeyboardBrightness::from_str(level);
+            }
+        }
+        Err(AsusctlError::ParseError(
+            "Could not find brightness level in output".to_string(),
+        ))
+    }
 
     #[test]
     fn test_parse_system_info() {
