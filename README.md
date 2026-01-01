@@ -35,3 +35,11 @@ This project was developed with assistance from Claude AI.
 ## License
 
 GPL-3.0
+
+## Develop
+
+```
+cp resources/com.github.bl4ckspell7.asusctl-gui.gschema.xml ~/.local/share/glib-2.0/schemas/
+
+glib-compile-schemas ~/.local/share/glib-2.0/schemas/
+```

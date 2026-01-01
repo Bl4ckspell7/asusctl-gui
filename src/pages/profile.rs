@@ -3,12 +3,20 @@ use gtk4::glib;
 use gtk4::prelude::*;
 use gtk4::subclass::prelude::*;
 use libadwaita as adw;
+use std::cell::RefCell;
+
+use crate::backend::{self, PowerProfile};
 
 mod imp {
     use super::*;
 
     #[derive(Debug, Default)]
-    pub struct ProfilePage;
+    pub struct ProfilePage {
+        pub profile_radios: RefCell<Vec<gtk4::CheckButton>>,
+        pub ac_combo: RefCell<Option<adw::ComboRow>>,
+        pub battery_combo: RefCell<Option<adw::ComboRow>>,
+        pub charge_scale: RefCell<Option<gtk4::Scale>>,
+    }
 
     #[glib::object_subclass]
     impl ObjectSubclass for ProfilePage {
@@ -21,6 +29,7 @@ mod imp {
         fn constructed(&self) {
             self.parent_constructed();
             self.obj().setup_ui();
+            self.obj().load_data();
         }
     }
 
@@ -47,6 +56,8 @@ impl ProfilePage {
     }
 
     fn setup_ui(&self) {
+        let imp = self.imp();
+
         // Page title
         let title = gtk4::Label::builder()
             .label("Power Profiles")
@@ -63,26 +74,29 @@ impl ProfilePage {
 
         let profiles = [
             (
+                PowerProfile::Quiet,
                 "Quiet",
                 "power-profile-power-saver-symbolic",
                 "Reduced fan noise, lower performance",
             ),
             (
+                PowerProfile::Balanced,
                 "Balanced",
                 "power-profile-balanced-symbolic",
                 "Balance between performance and noise",
             ),
             (
+                PowerProfile::Performance,
                 "Performance",
                 "power-profile-performance-symbolic",
                 "Maximum performance",
             ),
         ];
 
-        // Create first radio button as the group leader
+        let mut radios: Vec<gtk4::CheckButton> = Vec::new();
         let mut first_radio: Option<gtk4::CheckButton> = None;
 
-        for (name, icon, description) in profiles {
+        for (profile, name, icon, description) in profiles {
             let row = adw::ActionRow::builder()
                 .title(name)
                 .subtitle(description)
@@ -103,11 +117,24 @@ impl ProfilePage {
                 first_radio = Some(radio.clone());
             }
 
+            // Connect toggled handler to set profile
+            let profile_clone = profile;
+            radio.connect_toggled(move |button| {
+                if button.is_active() {
+                    if let Err(e) = backend::set_profile(profile_clone) {
+                        eprintln!("Failed to set profile: {}", e);
+                    }
+                }
+            });
+
             row.add_suffix(&radio);
             row.set_activatable_widget(Some(&radio));
 
+            radios.push(radio);
             current_group.add(&row);
         }
+
+        imp.profile_radios.replace(radios);
 
         self.append(&current_group);
 
@@ -127,6 +154,7 @@ impl ProfilePage {
             .selected(2) // Performance by default on AC
             .build();
 
+        imp.ac_combo.replace(Some(ac_combo.clone()));
         ac_group.add(&ac_combo);
         self.append(&ac_group);
 
@@ -146,6 +174,7 @@ impl ProfilePage {
             .selected(0) // Quiet by default on battery
             .build();
 
+        imp.battery_combo.replace(Some(battery_combo.clone()));
         battery_group.add(&battery_combo);
         self.append(&battery_group);
 
@@ -167,10 +196,74 @@ impl ProfilePage {
             .draw_value(true)
             .build();
 
+        // Connect charge scale to set charge limit
+        charge_scale.connect_value_changed(|scale| {
+            let value = scale.value() as u8;
+            if let Err(e) = backend::set_charge_limit(value) {
+                eprintln!("Failed to set charge limit: {}", e);
+            }
+        });
+
+        imp.charge_scale.replace(Some(charge_scale.clone()));
         charge_limit_row.add_suffix(&charge_scale);
         battery_settings.add(&charge_limit_row);
 
         self.append(&battery_settings);
+    }
+
+    fn load_data(&self) {
+        let imp = self.imp();
+
+        // Get current profile state via CLI (more reliable mapping)
+        match backend::get_profile_state() {
+            Ok(state) => {
+                let radios = imp.profile_radios.borrow();
+                let index = match state.active {
+                    PowerProfile::Quiet => 0,
+                    PowerProfile::Balanced => 1,
+                    PowerProfile::Performance => 2,
+                };
+
+                if let Some(radio) = radios.get(index) {
+                    radio.set_active(true);
+                }
+
+                // Set AC combo
+                if let Some(combo) = imp.ac_combo.borrow().as_ref() {
+                    let ac_index = match state.on_ac {
+                        PowerProfile::Quiet => 0,
+                        PowerProfile::Balanced => 1,
+                        PowerProfile::Performance => 2,
+                    };
+                    combo.set_selected(ac_index);
+                }
+
+                // Set battery combo
+                if let Some(combo) = imp.battery_combo.borrow().as_ref() {
+                    let bat_index = match state.on_battery {
+                        PowerProfile::Quiet => 0,
+                        PowerProfile::Balanced => 1,
+                        PowerProfile::Performance => 2,
+                    };
+                    combo.set_selected(bat_index);
+                }
+            }
+            Err(e) => {
+                eprintln!("Failed to get profile state: {}", e);
+            }
+        }
+
+        // Load charge limit via D-Bus
+        if let Some(scale) = imp.charge_scale.borrow().as_ref() {
+            match backend::get_charge_limit_dbus() {
+                Ok(limit) => {
+                    scale.set_value(limit as f64);
+                }
+                Err(e) => {
+                    eprintln!("Failed to get charge limit: {}", e);
+                }
+            }
+        }
     }
 }
 

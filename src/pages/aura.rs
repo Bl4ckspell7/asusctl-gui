@@ -3,12 +3,17 @@ use gtk4::glib;
 use gtk4::prelude::*;
 use gtk4::subclass::prelude::*;
 use libadwaita as adw;
+use std::cell::RefCell;
+
+use crate::backend::{self, KeyboardBrightness};
 
 mod imp {
     use super::*;
 
     #[derive(Debug, Default)]
-    pub struct AuraPage;
+    pub struct AuraPage {
+        pub brightness_buttons: RefCell<Vec<gtk4::ToggleButton>>,
+    }
 
     #[glib::object_subclass]
     impl ObjectSubclass for AuraPage {
@@ -21,6 +26,7 @@ mod imp {
         fn constructed(&self) {
             self.parent_constructed();
             self.obj().setup_ui();
+            self.obj().load_data();
         }
     }
 
@@ -47,6 +53,8 @@ impl AuraPage {
     }
 
     fn setup_ui(&self) {
+        let imp = self.imp();
+
         // Page title
         let title = gtk4::Label::builder()
             .label("Aura Lighting")
@@ -63,20 +71,45 @@ impl AuraPage {
 
         let brightness_row = adw::ActionRow::builder().title("Brightness Level").build();
 
-        // Brightness buttons
+        // Brightness toggle buttons (linked group)
         let brightness_box = gtk4::Box::builder()
             .orientation(gtk4::Orientation::Horizontal)
-            .spacing(6)
+            .css_classes(["linked"])
             .valign(gtk4::Align::Center)
             .build();
 
-        for level in ["Off", "Low", "Med", "High"] {
-            let btn = gtk4::Button::builder()
-                .label(level)
-                .css_classes(["flat"])
-                .build();
+        let levels = [
+            (KeyboardBrightness::Off, "Off"),
+            (KeyboardBrightness::Low, "Low"),
+            (KeyboardBrightness::Med, "Med"),
+            (KeyboardBrightness::High, "High"),
+        ];
+
+        let mut buttons: Vec<gtk4::ToggleButton> = Vec::new();
+
+        for (level, label) in levels {
+            let btn = gtk4::ToggleButton::builder().label(label).build();
+
+            // Connect click handler to set brightness
+            let level_clone = level;
+            btn.connect_clicked(move |button| {
+                if button.is_active() {
+                    if let Err(e) = backend::set_keyboard_brightness(level_clone) {
+                        eprintln!("Failed to set brightness: {}", e);
+                    }
+                }
+            });
+
             brightness_box.append(&btn);
+            buttons.push(btn);
         }
+
+        // Link buttons together so only one can be active
+        for i in 1..buttons.len() {
+            buttons[i].set_group(Some(&buttons[0]));
+        }
+
+        imp.brightness_buttons.replace(buttons);
 
         brightness_row.add_suffix(&brightness_box);
         brightness_group.add(&brightness_row);
@@ -91,12 +124,7 @@ impl AuraPage {
         let modes = [
             ("Static", "Single color"),
             ("Breathe", "Pulsing effect"),
-            ("Rainbow", "Color cycle"),
-            ("Star", "Twinkling effect"),
-            ("Rain", "Falling drops"),
-            ("Highlight", "Reactive typing"),
-            ("Laser", "Laser effect"),
-            ("Ripple", "Ripple on keypress"),
+            ("Pulse", "Rapid pulse"),
         ];
 
         for (mode, description) in modes {
@@ -134,6 +162,30 @@ impl AuraPage {
         color_group.add(&color_row);
 
         self.append(&color_group);
+    }
+
+    fn load_data(&self) {
+        let imp = self.imp();
+
+        // Get current brightness via D-Bus and update buttons
+        match backend::get_keyboard_brightness_dbus() {
+            Ok(current_brightness) => {
+                let buttons = imp.brightness_buttons.borrow();
+                let index = match current_brightness {
+                    KeyboardBrightness::Off => 0,
+                    KeyboardBrightness::Low => 1,
+                    KeyboardBrightness::Med => 2,
+                    KeyboardBrightness::High => 3,
+                };
+
+                if let Some(btn) = buttons.get(index) {
+                    btn.set_active(true);
+                }
+            }
+            Err(e) => {
+                eprintln!("Failed to get keyboard brightness: {}", e);
+            }
+        }
     }
 }
 
