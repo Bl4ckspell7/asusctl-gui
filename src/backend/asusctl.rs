@@ -12,22 +12,22 @@
 use std::fs;
 use std::process::Command;
 use std::str::FromStr;
+use std::sync::OnceLock;
 
 // D-Bus constants
 const DBUS_DEST: &str = "xyz.ljones.Asusd";
 const PLATFORM_PATH: &str = "/xyz/ljones";
 const PLATFORM_INTERFACE: &str = "xyz.ljones.Platform";
-
-// Aura D-Bus (keyboard lighting)
-const AURA_PATH: &str = "/xyz/ljones/aura/19b6_4_4";
+const AURA_BASE_PATH: &str = "/xyz/ljones/aura";
 const AURA_INTERFACE: &str = "xyz.ljones.Aura";
-
-// Slash D-Bus (LED bar)
-const SLASH_PATH: &str = "/xyz/ljones/aura/193b_5_5";
 const SLASH_INTERFACE: &str = "xyz.ljones.Slash";
 
 // Config file paths (fallback)
 const SLASH_CONFIG_PATH: &str = "/etc/asusd/slash.ron";
+
+// Cached D-Bus paths (discovered at runtime)
+static AURA_PATH: OnceLock<Option<String>> = OnceLock::new();
+static SLASH_PATH: OnceLock<Option<String>> = OnceLock::new();
 
 // ============================================================================
 // Error Types
@@ -360,6 +360,80 @@ fn parse_dbus_uint(output: &str) -> Result<u32> {
 }
 
 // ============================================================================
+// D-Bus Path Discovery
+// ============================================================================
+
+/// Discover child paths under /xyz/ljones/aura using busctl
+fn discover_aura_children() -> Result<Vec<String>> {
+    let output = Command::new("busctl")
+        .args(["tree", "--list", DBUS_DEST])
+        .output()
+        .map_err(|e| AsusctlError::CommandFailed(format!("busctl tree failed: {e}")))?;
+
+    if !output.status.success() {
+        return Err(AsusctlError::ServiceNotRunning);
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let paths: Vec<String> = stdout
+        .lines()
+        .filter(|line| line.starts_with(AURA_BASE_PATH) && line.len() > AURA_BASE_PATH.len())
+        .map(|s| s.to_string())
+        .collect();
+
+    Ok(paths)
+}
+
+/// Check if a D-Bus path implements a specific interface by trying to read a known property
+fn path_has_interface(path: &str, interface: &str, test_property: &str) -> bool {
+    let output = Command::new("busctl")
+        .args(["get-property", DBUS_DEST, path, interface, test_property])
+        .output()
+        .ok();
+
+    match output {
+        Some(out) => out.status.success(),
+        None => false,
+    }
+}
+
+/// Get the Aura D-Bus path (cached after first discovery)
+fn get_aura_path() -> Option<&'static String> {
+    AURA_PATH
+        .get_or_init(|| {
+            let paths = discover_aura_children().ok()?;
+            // Aura interface has "Brightness" property (keyboard brightness)
+            for path in &paths {
+                if path_has_interface(path, AURA_INTERFACE, "Brightness") {
+                    eprintln!("[asusctl-gui] Discovered Aura D-Bus path: {path}");
+                    return Some(path.clone());
+                }
+            }
+            eprintln!("[asusctl-gui] Warning: No Aura D-Bus path found");
+            None
+        })
+        .as_ref()
+}
+
+/// Get the Slash D-Bus path (cached after first discovery)
+fn get_slash_path() -> Option<&'static String> {
+    SLASH_PATH
+        .get_or_init(|| {
+            let paths = discover_aura_children().ok()?;
+            // Slash interface has "Enabled" property
+            for path in &paths {
+                if path_has_interface(path, SLASH_INTERFACE, "Enabled") {
+                    eprintln!("[asusctl-gui] Discovered Slash D-Bus path: {path}");
+                    return Some(path.clone());
+                }
+            }
+            eprintln!("[asusctl-gui] Warning: No Slash D-Bus path found");
+            None
+        })
+        .as_ref()
+}
+
+// ============================================================================
 // Parsing Functions
 // ============================================================================
 
@@ -550,7 +624,9 @@ pub fn get_supported_features() -> Result<SupportedFeatures> {
 
 /// Get current keyboard brightness via D-Bus
 pub fn get_keyboard_brightness_dbus() -> Result<KeyboardBrightness> {
-    let output = read_dbus_property_at(AURA_PATH, AURA_INTERFACE, "Brightness")?;
+    let path = get_aura_path()
+        .ok_or_else(|| AsusctlError::CommandFailed("Aura D-Bus path not found".to_string()))?;
+    let output = read_dbus_property_at(path, AURA_INTERFACE, "Brightness")?;
     let value = parse_dbus_uint(&output)?;
 
     match value {
@@ -677,17 +753,23 @@ pub fn set_slash_interval(interval: u8) -> Result<()> {
 // Slash D-Bus getters
 
 fn get_slash_enabled_dbus() -> Result<bool> {
-    let output = read_dbus_property_at(SLASH_PATH, SLASH_INTERFACE, "Enabled")?;
+    let path = get_slash_path()
+        .ok_or_else(|| AsusctlError::CommandFailed("Slash D-Bus path not found".to_string()))?;
+    let output = read_dbus_property_at(path, SLASH_INTERFACE, "Enabled")?;
     parse_dbus_bool(&output)
 }
 
 fn get_slash_brightness_dbus() -> Result<u8> {
-    let output = read_dbus_property_at(SLASH_PATH, SLASH_INTERFACE, "Brightness")?;
+    let path = get_slash_path()
+        .ok_or_else(|| AsusctlError::CommandFailed("Slash D-Bus path not found".to_string()))?;
+    let output = read_dbus_property_at(path, SLASH_INTERFACE, "Brightness")?;
     parse_dbus_byte(&output)
 }
 
 fn get_slash_interval_dbus() -> Result<u8> {
-    let output = read_dbus_property_at(SLASH_PATH, SLASH_INTERFACE, "Interval")?;
+    let path = get_slash_path()
+        .ok_or_else(|| AsusctlError::CommandFailed("Slash D-Bus path not found".to_string()))?;
+    let output = read_dbus_property_at(path, SLASH_INTERFACE, "Interval")?;
     parse_dbus_byte(&output)
 }
 
@@ -714,27 +796,37 @@ pub fn get_slash_mode() -> Result<SlashMode> {
 // Slash show-on event getters (D-Bus only)
 
 pub fn get_slash_show_on_boot() -> Result<bool> {
-    let output = read_dbus_property_at(SLASH_PATH, SLASH_INTERFACE, "ShowOnBoot")?;
+    let path = get_slash_path()
+        .ok_or_else(|| AsusctlError::CommandFailed("Slash D-Bus path not found".to_string()))?;
+    let output = read_dbus_property_at(path, SLASH_INTERFACE, "ShowOnBoot")?;
     parse_dbus_bool(&output)
 }
 
 pub fn get_slash_show_on_shutdown() -> Result<bool> {
-    let output = read_dbus_property_at(SLASH_PATH, SLASH_INTERFACE, "ShowOnShutdown")?;
+    let path = get_slash_path()
+        .ok_or_else(|| AsusctlError::CommandFailed("Slash D-Bus path not found".to_string()))?;
+    let output = read_dbus_property_at(path, SLASH_INTERFACE, "ShowOnShutdown")?;
     parse_dbus_bool(&output)
 }
 
 pub fn get_slash_show_on_sleep() -> Result<bool> {
-    let output = read_dbus_property_at(SLASH_PATH, SLASH_INTERFACE, "ShowOnSleep")?;
+    let path = get_slash_path()
+        .ok_or_else(|| AsusctlError::CommandFailed("Slash D-Bus path not found".to_string()))?;
+    let output = read_dbus_property_at(path, SLASH_INTERFACE, "ShowOnSleep")?;
     parse_dbus_bool(&output)
 }
 
 pub fn get_slash_show_on_battery() -> Result<bool> {
-    let output = read_dbus_property_at(SLASH_PATH, SLASH_INTERFACE, "ShowOnBattery")?;
+    let path = get_slash_path()
+        .ok_or_else(|| AsusctlError::CommandFailed("Slash D-Bus path not found".to_string()))?;
+    let output = read_dbus_property_at(path, SLASH_INTERFACE, "ShowOnBattery")?;
     parse_dbus_bool(&output)
 }
 
 pub fn get_slash_show_battery_warning() -> Result<bool> {
-    let output = read_dbus_property_at(SLASH_PATH, SLASH_INTERFACE, "ShowBatteryWarning")?;
+    let path = get_slash_path()
+        .ok_or_else(|| AsusctlError::CommandFailed("Slash D-Bus path not found".to_string()))?;
+    let output = read_dbus_property_at(path, SLASH_INTERFACE, "ShowBatteryWarning")?;
     parse_dbus_bool(&output)
 }
 
