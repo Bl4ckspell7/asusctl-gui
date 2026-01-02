@@ -6,6 +6,7 @@ use libadwaita as adw;
 use std::cell::RefCell;
 
 use crate::backend::{self, KeyboardBrightness};
+use crate::ui::Refreshable;
 
 mod imp {
     use super::*;
@@ -26,7 +27,7 @@ mod imp {
         fn constructed(&self) {
             self.parent_constructed();
             self.obj().setup_ui();
-            self.obj().load_data();
+            self.obj().refresh_data();
         }
     }
 
@@ -95,7 +96,7 @@ impl AuraPage {
             btn.connect_clicked(move |button| {
                 if button.is_active() {
                     if let Err(e) = backend::set_keyboard_brightness(level_clone) {
-                        eprintln!("Failed to set brightness: {}", e);
+                        eprintln!("Failed to set brightness: {e}");
                     }
                 }
             });
@@ -164,7 +165,8 @@ impl AuraPage {
         self.append(&color_group);
     }
 
-    fn load_data(&self) {
+    /// Refresh/reload all data on this page
+    fn refresh_data(&self) {
         let imp = self.imp();
 
         // Get current brightness via D-Bus and update buttons
@@ -183,7 +185,7 @@ impl AuraPage {
                 }
             }
             Err(e) => {
-                eprintln!("Failed to get keyboard brightness: {}", e);
+                eprintln!("Failed to get keyboard brightness: {e}");
             }
         }
     }
@@ -192,5 +194,11 @@ impl AuraPage {
 impl Default for AuraPage {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl Refreshable for AuraPage {
+    fn refresh(&self) {
+        self.refresh_data();
     }
 }

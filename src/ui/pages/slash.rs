@@ -6,6 +6,7 @@ use libadwaita as adw;
 use std::cell::RefCell;
 
 use crate::backend::{self, SlashMode};
+use crate::ui::Refreshable;
 
 mod imp {
     use super::*;
@@ -34,7 +35,7 @@ mod imp {
         fn constructed(&self) {
             self.parent_constructed();
             self.obj().setup_ui();
-            self.obj().load_data();
+            self.obj().refresh_data();
         }
     }
 
@@ -101,9 +102,7 @@ impl SlashPage {
         self.append(&description);
 
         // Power group
-        let power_group = adw::PreferencesGroup::builder()
-            .title("Power")
-            .build();
+        let power_group = adw::PreferencesGroup::builder().title("Power").build();
 
         let enable_row = adw::SwitchRow::builder()
             .title("Enable Slash Lighting")
@@ -119,7 +118,7 @@ impl SlashPage {
             };
 
             if let Err(e) = result {
-                eprintln!("Failed to toggle slash: {}", e);
+                eprintln!("Failed to toggle slash: {e}");
             }
         });
 
@@ -128,9 +127,7 @@ impl SlashPage {
         self.append(&power_group);
 
         // Brightness group
-        let brightness_group = adw::PreferencesGroup::builder()
-            .title("Brightness")
-            .build();
+        let brightness_group = adw::PreferencesGroup::builder().title("Brightness").build();
 
         let brightness_row = adw::ActionRow::builder()
             .title("Brightness Level")
@@ -149,7 +146,7 @@ impl SlashPage {
         brightness_scale.connect_value_changed(|scale| {
             let value = scale.value() as u8;
             if let Err(e) = backend::set_slash_brightness(value) {
-                eprintln!("Failed to set slash brightness: {}", e);
+                eprintln!("Failed to set slash brightness: {e}");
             }
         });
 
@@ -160,9 +157,7 @@ impl SlashPage {
         self.append(&brightness_group);
 
         // Mode group
-        let mode_group = adw::PreferencesGroup::builder()
-            .title("Animation")
-            .build();
+        let mode_group = adw::PreferencesGroup::builder().title("Animation").build();
 
         // Create mode names list for combo
         let mode_names: Vec<&str> = SLASH_MODES.iter().map(|(name, _)| *name).collect();
@@ -194,7 +189,7 @@ impl SlashPage {
             };
 
             if let Err(e) = backend::set_slash_mode(mode) {
-                eprintln!("Failed to set slash mode: {}", e);
+                eprintln!("Failed to set slash mode: {e}");
             }
         });
 
@@ -213,7 +208,7 @@ impl SlashPage {
         interval_combo.connect_selected_notify(|combo| {
             let interval = combo.selected() as u8;
             if let Err(e) = backend::set_slash_interval(interval) {
-                eprintln!("Failed to set slash interval: {}", e);
+                eprintln!("Failed to set slash interval: {e}");
             }
         });
 
@@ -234,7 +229,7 @@ impl SlashPage {
             .build();
         show_on_boot.connect_active_notify(|switch| {
             if let Err(e) = backend::set_slash_show_on_boot(switch.is_active()) {
-                eprintln!("Failed to set show on boot: {}", e);
+                eprintln!("Failed to set show on boot: {e}");
             }
         });
         imp.show_on_boot.replace(Some(show_on_boot.clone()));
@@ -247,7 +242,7 @@ impl SlashPage {
             .build();
         show_on_shutdown.connect_active_notify(|switch| {
             if let Err(e) = backend::set_slash_show_on_shutdown(switch.is_active()) {
-                eprintln!("Failed to set show on shutdown: {}", e);
+                eprintln!("Failed to set show on shutdown: {e}");
             }
         });
         imp.show_on_shutdown.replace(Some(show_on_shutdown.clone()));
@@ -260,7 +255,7 @@ impl SlashPage {
             .build();
         show_on_sleep.connect_active_notify(|switch| {
             if let Err(e) = backend::set_slash_show_on_sleep(switch.is_active()) {
-                eprintln!("Failed to set show on sleep: {}", e);
+                eprintln!("Failed to set show on sleep: {e}");
             }
         });
         imp.show_on_sleep.replace(Some(show_on_sleep.clone()));
@@ -273,7 +268,7 @@ impl SlashPage {
             .build();
         show_on_battery.connect_active_notify(|switch| {
             if let Err(e) = backend::set_slash_show_on_battery(switch.is_active()) {
-                eprintln!("Failed to set show on battery: {}", e);
+                eprintln!("Failed to set show on battery: {e}");
             }
         });
         imp.show_on_battery.replace(Some(show_on_battery.clone()));
@@ -286,7 +281,7 @@ impl SlashPage {
             .build();
         show_battery_warning.connect_active_notify(|switch| {
             if let Err(e) = backend::set_slash_show_battery_warning(switch.is_active()) {
-                eprintln!("Failed to set show battery warning: {}", e);
+                eprintln!("Failed to set show battery warning: {e}");
             }
         });
         imp.show_battery_warning
@@ -296,7 +291,8 @@ impl SlashPage {
         self.append(&events_group);
     }
 
-    fn load_data(&self) {
+    /// Refresh/reload all data on this page
+    fn refresh_data(&self) {
         let imp = self.imp();
 
         // Load enabled state from config file
@@ -306,7 +302,7 @@ impl SlashPage {
                     switch.set_active(enabled);
                 }
                 Err(e) => {
-                    eprintln!("Failed to get slash enabled state: {}", e);
+                    eprintln!("Failed to get slash enabled state: {e}");
                 }
             }
         }
@@ -318,7 +314,7 @@ impl SlashPage {
                     scale.set_value(brightness as f64);
                 }
                 Err(e) => {
-                    eprintln!("Failed to get slash brightness: {}", e);
+                    eprintln!("Failed to get slash brightness: {e}");
                 }
             }
         }
@@ -347,7 +343,7 @@ impl SlashPage {
                     combo.set_selected(index);
                 }
                 Err(e) => {
-                    eprintln!("Failed to get slash mode: {}", e);
+                    eprintln!("Failed to get slash mode: {e}");
                 }
             }
         }
@@ -359,7 +355,7 @@ impl SlashPage {
                     combo.set_selected(interval as u32);
                 }
                 Err(e) => {
-                    eprintln!("Failed to get slash interval: {}", e);
+                    eprintln!("Failed to get slash interval: {e}");
                 }
             }
         }
@@ -400,5 +396,11 @@ impl SlashPage {
 impl Default for SlashPage {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl Refreshable for SlashPage {
+    fn refresh(&self) {
+        self.refresh_data();
     }
 }
