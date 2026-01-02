@@ -6,6 +6,7 @@ use libadwaita as adw;
 use std::cell::RefCell;
 
 use crate::backend;
+use crate::ui::Refreshable;
 
 mod imp {
     use super::*;
@@ -15,7 +16,6 @@ mod imp {
         pub model_row: RefCell<Option<adw::ActionRow>>,
         pub driver_row: RefCell<Option<adw::ActionRow>>,
         pub asusctl_row: RefCell<Option<adw::ActionRow>>,
-        pub features_group: RefCell<Option<adw::PreferencesGroup>>,
     }
 
     #[glib::object_subclass]
@@ -29,7 +29,7 @@ mod imp {
         fn constructed(&self) {
             self.parent_constructed();
             self.obj().setup_ui();
-            self.obj().load_data();
+            self.obj().refresh_data();
         }
     }
 
@@ -98,17 +98,29 @@ impl AboutPage {
 
         self.append(&laptop_group);
 
-        // Supported features group
+        // Supported features group (loaded once, static data)
         let features_group = adw::PreferencesGroup::builder()
             .title("Supported Features")
             .build();
 
-        imp.features_group.replace(Some(features_group.clone()));
+        match backend::get_supported_features() {
+            Ok(features) => {
+                Self::populate_features(&features_group, &features);
+            }
+            Err(e) => {
+                let error_row = adw::ActionRow::builder()
+                    .title("Error loading features")
+                    .subtitle(&e.to_string())
+                    .build();
+                features_group.add(&error_row);
+            }
+        }
 
         self.append(&features_group);
     }
 
-    fn load_data(&self) {
+    /// Refresh/reload all data on this page
+    fn refresh_data(&self) {
         let imp = self.imp();
 
         // Load system info
@@ -137,25 +149,9 @@ impl AboutPage {
                 }
             }
         }
-
-        // Load supported features
-        if let Some(features_group) = imp.features_group.borrow().as_ref() {
-            match backend::get_supported_features() {
-                Ok(features) => {
-                    self.populate_features(features_group, &features);
-                }
-                Err(e) => {
-                    let error_row = adw::ActionRow::builder()
-                        .title("Error loading features")
-                        .subtitle(&e.to_string())
-                        .build();
-                    features_group.add(&error_row);
-                }
-            }
-        }
     }
 
-    fn populate_features(&self, group: &adw::PreferencesGroup, features: &backend::SupportedFeatures) {
+    fn populate_features(group: &adw::PreferencesGroup, features: &backend::SupportedFeatures) {
         // Core features
         let core_features = [
             ("Aura (Keyboard Lighting)", features.has_aura),
@@ -165,9 +161,7 @@ impl AboutPage {
         ];
 
         for (name, supported) in core_features {
-            let row = adw::ActionRow::builder()
-                .title(name)
-                .build();
+            let row = adw::ActionRow::builder().title(name).build();
 
             let icon_name = if supported {
                 "emblem-ok-symbolic"
@@ -193,9 +187,7 @@ impl AboutPage {
         ];
 
         for (name, supported) in platform_props {
-            let row = adw::ActionRow::builder()
-                .title(name)
-                .build();
+            let row = adw::ActionRow::builder().title(name).build();
 
             let icon_name = if supported {
                 "emblem-ok-symbolic"
@@ -219,7 +211,7 @@ impl AboutPage {
             let levels: Vec<String> = features
                 .keyboard_brightness_levels
                 .iter()
-                .map(|l| format!("{}", l))
+                .map(|l| format!("{l}"))
                 .collect();
 
             let row = adw::ActionRow::builder()
@@ -232,7 +224,7 @@ impl AboutPage {
 
         // Aura modes
         if !features.aura_modes.is_empty() {
-            let modes: Vec<String> = features.aura_modes.iter().map(|m| format!("{}", m)).collect();
+            let modes: Vec<String> = features.aura_modes.iter().map(|m| format!("{m}")).collect();
 
             let row = adw::ActionRow::builder()
                 .title("Aura Modes")
@@ -247,5 +239,11 @@ impl AboutPage {
 impl Default for AboutPage {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl Refreshable for AboutPage {
+    fn refresh(&self) {
+        self.refresh_data();
     }
 }

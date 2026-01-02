@@ -6,6 +6,7 @@ use libadwaita as adw;
 use std::cell::RefCell;
 
 use crate::backend::{self, PowerProfile};
+use crate::ui::Refreshable;
 
 mod imp {
     use super::*;
@@ -29,7 +30,7 @@ mod imp {
         fn constructed(&self) {
             self.parent_constructed();
             self.obj().setup_ui();
-            self.obj().load_data();
+            self.obj().refresh_data();
         }
     }
 
@@ -122,7 +123,7 @@ impl PowerPage {
             radio.connect_toggled(move |button| {
                 if button.is_active() {
                     if let Err(e) = backend::set_profile(profile_clone) {
-                        eprintln!("Failed to set profile: {}", e);
+                        eprintln!("Failed to set profile: {e}");
                     }
                 }
             });
@@ -200,7 +201,7 @@ impl PowerPage {
         charge_scale.connect_value_changed(|scale| {
             let value = scale.value() as u8;
             if let Err(e) = backend::set_charge_limit(value) {
-                eprintln!("Failed to set charge limit: {}", e);
+                eprintln!("Failed to set charge limit: {e}");
             }
         });
 
@@ -211,7 +212,8 @@ impl PowerPage {
         self.append(&battery_settings);
     }
 
-    fn load_data(&self) {
+    /// Refresh/reload all data on this page
+    fn refresh_data(&self) {
         let imp = self.imp();
 
         // Get current profile state via CLI (more reliable mapping)
@@ -249,7 +251,7 @@ impl PowerPage {
                 }
             }
             Err(e) => {
-                eprintln!("Failed to get profile state: {}", e);
+                eprintln!("Failed to get profile state: {e}");
             }
         }
 
@@ -260,7 +262,7 @@ impl PowerPage {
                     scale.set_value(limit as f64);
                 }
                 Err(e) => {
-                    eprintln!("Failed to get charge limit: {}", e);
+                    eprintln!("Failed to get charge limit: {e}");
                 }
             }
         }
@@ -270,5 +272,11 @@ impl PowerPage {
 impl Default for PowerPage {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl Refreshable for PowerPage {
+    fn refresh(&self) {
+        self.refresh_data();
     }
 }

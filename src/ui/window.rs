@@ -5,7 +5,9 @@ use gtk4::prelude::*;
 use gtk4::subclass::prelude::*;
 use libadwaita as adw;
 
-use super::{AboutPage, AuraPage, Page, PreferencesDialog, PowerPage, SlashPage, ThemeSwitcher};
+use super::{
+    AboutPage, AuraPage, Page, PowerPage, PreferencesDialog, SlashPage, ThemeSwitcher,
+};
 
 mod imp {
     use super::*;
@@ -59,6 +61,7 @@ impl AsusctlGuiWindow {
     }
 
     fn setup_ui(&self) {
+        let imp = self.imp();
         let settings = gio::Settings::new("com.github.bl4ckspell7.asusctl-gui");
 
         // Create the content stack for pages
@@ -71,16 +74,12 @@ impl AsusctlGuiWindow {
         // Add pages to stack
         let about_page = AboutPage::new();
         let aura_page = AuraPage::new();
-        let profile_page = PowerPage::new();
+        let power_page = PowerPage::new();
         let slash_page = SlashPage::new();
 
         stack.add_titled(&about_page, Some(Page::About.as_str()), Page::About.title());
         stack.add_titled(&aura_page, Some(Page::Aura.as_str()), Page::Aura.title());
-        stack.add_titled(
-            &profile_page,
-            Some(Page::Power.as_str()),
-            Page::Power.title(),
-        );
+        stack.add_titled(&power_page, Some(Page::Power.as_str()), Page::Power.title());
         stack.add_titled(&slash_page, Some(Page::Slash.as_str()), Page::Slash.title());
 
         // Create sidebar with navigation items
@@ -112,7 +111,7 @@ impl AsusctlGuiWindow {
             sidebar_list.select_row(Some(&row));
         }
 
-        // Connect row selection to stack page switching
+        // Connect row selection to stack page switching and refresh
         let stack_clone = stack.clone();
         let settings_clone = settings.clone();
         sidebar_list.connect_row_selected(move |_, row| {
@@ -121,6 +120,8 @@ impl AsusctlGuiWindow {
                     stack_clone.set_visible_child_name(name);
                     // Save last viewed page
                     let _ = settings_clone.set_string("last-page", name);
+                    // Refresh the visible page
+                    Self::refresh_visible_page(&stack_clone);
                 }
             }
         });
@@ -214,11 +215,19 @@ impl AsusctlGuiWindow {
         self.setup_actions();
 
         // Store references
-        let imp = self.imp();
         imp.split_view.replace(Some(split_view));
         imp.stack.replace(Some(stack));
         imp.sidebar_list.replace(Some(sidebar_list));
         imp.settings.replace(Some(settings));
+    }
+
+    /// Refresh the currently visible page
+    fn refresh_visible_page(stack: &gtk4::Stack) {
+        if let Some(name) = stack.visible_child_name() {
+            if let Ok(page) = Page::try_from(name.as_str()) {
+                page.refresh_in_stack(stack);
+            }
+        }
     }
 
     fn setup_actions(&self) {
