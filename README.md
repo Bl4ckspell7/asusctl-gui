@@ -6,7 +6,7 @@ A GTK4/Libadwaita GUI for [asusctl](https://gitlab.com/asus-linux/asusctl) - man
 
 - **About** - View laptop info, driver status, and supported features
 - **Aura** - Manage keyboard lighting modes and colors
-- **Profile** - Set power profiles for AC/battery
+- **Power** - Set power profiles for AC/battery
 - **Slash** - Control slash lighting on the back of the display
 
 ## Requirements
