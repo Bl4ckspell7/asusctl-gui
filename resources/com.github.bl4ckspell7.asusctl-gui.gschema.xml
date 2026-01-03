@@ -15,7 +15,7 @@
             <default>'about'</default>
             <summary>Startup page</summary>
             <description>The page to show on startup when restore-last-page is disabled. Valid
-                values: 'about', 'aura', 'profile', 'slash'</description>
+                values: 'about', 'aura', 'power', 'slash'</description>
         </key>
         <key name="last-page" type="s">
             <default>'about'</default>
