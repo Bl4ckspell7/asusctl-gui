@@ -5,9 +5,7 @@ use gtk4::prelude::*;
 use gtk4::subclass::prelude::*;
 use libadwaita as adw;
 
-use super::{
-    AboutPage, AuraPage, Page, PowerPage, PreferencesDialog, SlashPage, ThemeSwitcher,
-};
+use super::{AboutPage, AuraPage, Page, PowerPage, PreferencesDialog, SlashPage, ThemeSwitcher};
 
 mod imp {
     use super::*;
@@ -181,7 +179,7 @@ impl AsusctlGuiWindow {
             .child(&sidebar_toolbar)
             .build();
 
-        // Create content toolbar view with header (no menu button here anymore)
+        // Create content toolbar view with header
         let content_header = adw::HeaderBar::builder().show_title(false).build();
 
         // Wrap stack in a scrolled window to allow content scrolling
