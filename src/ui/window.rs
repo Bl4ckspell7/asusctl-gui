@@ -4,8 +4,11 @@ use gtk4::glib;
 use gtk4::prelude::*;
 use gtk4::subclass::prelude::*;
 use libadwaita as adw;
+use std::time::Duration;
 
-use super::{AboutPage, AuraPage, Page, PowerPage, PreferencesDialog, SlashPage, ThemeSwitcher};
+use super::{
+    AboutPage, AuraPage, Page, PowerPage, PreferencesDialog, Refreshable, SlashPage, ThemeSwitcher,
+};
 
 mod imp {
     use super::*;
@@ -18,6 +21,13 @@ mod imp {
         pub stack: RefCell<Option<gtk4::Stack>>,
         pub sidebar_list: RefCell<Option<gtk4::ListBox>>,
         pub settings: RefCell<Option<gio::Settings>>,
+        // Store direct references to pages for refresh
+        pub about_page: RefCell<Option<AboutPage>>,
+        pub aura_page: RefCell<Option<AuraPage>>,
+        pub power_page: RefCell<Option<PowerPage>>,
+        pub slash_page: RefCell<Option<SlashPage>>,
+        // Track refresh timer source ID
+        pub refresh_source_id: RefCell<Option<glib::SourceId>>,
     }
 
     #[glib::object_subclass]
@@ -58,6 +68,77 @@ impl AsusctlGuiWindow {
             .build()
     }
 
+    /// Start a periodic timer that refreshes the visible page
+    fn start_refresh_timer(&self, interval_secs: f64) {
+        let imp = self.imp();
+        let window_weak = self.downgrade();
+        let millis = (interval_secs * 1000.0) as u64;
+
+        let source_id = glib::timeout_add_local(Duration::from_millis(millis), move || {
+            let Some(window) = window_weak.upgrade() else {
+                return glib::ControlFlow::Break;
+            };
+
+            window.refresh_visible_page();
+            glib::ControlFlow::Continue
+        });
+
+        imp.refresh_source_id.replace(Some(source_id));
+    }
+
+    /// Restart the refresh timer with new interval
+    fn restart_refresh_timer(&self, interval_secs: f64) {
+        let imp = self.imp();
+
+        // Stop existing timer
+        if let Some(source_id) = imp.refresh_source_id.take() {
+            source_id.remove();
+        }
+
+        // Start new timer
+        self.start_refresh_timer(interval_secs);
+    }
+
+    /// Refresh the currently visible page
+    fn refresh_visible_page(&self) {
+        let imp = self.imp();
+
+        let Some(stack) = imp.stack.borrow().as_ref().cloned() else {
+            return;
+        };
+
+        let Some(name) = stack.visible_child_name() else {
+            return;
+        };
+
+        let Ok(page) = Page::try_from(name.as_str()) else {
+            return;
+        };
+
+        match page {
+            Page::About => {
+                if let Some(p) = imp.about_page.borrow().as_ref() {
+                    p.refresh();
+                }
+            }
+            Page::Aura => {
+                if let Some(p) = imp.aura_page.borrow().as_ref() {
+                    p.refresh();
+                }
+            }
+            Page::Power => {
+                if let Some(p) = imp.power_page.borrow().as_ref() {
+                    p.refresh();
+                }
+            }
+            Page::Slash => {
+                if let Some(p) = imp.slash_page.borrow().as_ref() {
+                    p.refresh();
+                }
+            }
+        }
+    }
+
     fn setup_ui(&self) {
         let imp = self.imp();
         let settings = gio::Settings::new("com.github.bl4ckspell7.asusctl-gui");
@@ -69,16 +150,23 @@ impl AsusctlGuiWindow {
             .vhomogeneous(false)
             .build();
 
-        // Add pages to stack
+        // Create pages once and store references
         let about_page = AboutPage::new();
         let aura_page = AuraPage::new();
         let power_page = PowerPage::new();
         let slash_page = SlashPage::new();
 
+        // Add pages to stack
         stack.add_titled(&about_page, Some(Page::About.as_str()), Page::About.title());
         stack.add_titled(&aura_page, Some(Page::Aura.as_str()), Page::Aura.title());
         stack.add_titled(&power_page, Some(Page::Power.as_str()), Page::Power.title());
         stack.add_titled(&slash_page, Some(Page::Slash.as_str()), Page::Slash.title());
+
+        // Store page references for later refresh
+        imp.about_page.replace(Some(about_page));
+        imp.aura_page.replace(Some(aura_page));
+        imp.power_page.replace(Some(power_page));
+        imp.slash_page.replace(Some(slash_page));
 
         // Create sidebar with navigation items
         let sidebar_list = gtk4::ListBox::builder()
@@ -109,17 +197,14 @@ impl AsusctlGuiWindow {
             sidebar_list.select_row(Some(&row));
         }
 
-        // Connect row selection to stack page switching and refresh
+        // Connect row selection to stack page switching
         let stack_clone = stack.clone();
         let settings_clone = settings.clone();
         sidebar_list.connect_row_selected(move |_, row| {
             if let Some(row) = row {
                 if let Some(name) = row.widget_name().as_str().strip_prefix("nav-") {
                     stack_clone.set_visible_child_name(name);
-                    // Save last viewed page
                     let _ = settings_clone.set_string("last-page", name);
-                    // Refresh the visible page
-                    Self::refresh_visible_page(&stack_clone);
                 }
             }
         });
@@ -216,16 +301,20 @@ impl AsusctlGuiWindow {
         imp.split_view.replace(Some(split_view));
         imp.stack.replace(Some(stack));
         imp.sidebar_list.replace(Some(sidebar_list));
-        imp.settings.replace(Some(settings));
-    }
+        imp.settings.replace(Some(settings.clone()));
 
-    /// Refresh the currently visible page
-    fn refresh_visible_page(stack: &gtk4::Stack) {
-        if let Some(name) = stack.visible_child_name() {
-            if let Ok(page) = Page::try_from(name.as_str()) {
-                page.refresh_in_stack(stack);
+        // Start refresh timer with interval from settings (in seconds)
+        let interval_secs = settings.double("refresh-interval");
+        self.start_refresh_timer(interval_secs);
+
+        // Listen for settings changes to restart timer with new interval
+        let window_weak = self.downgrade();
+        settings.connect_changed(Some("refresh-interval"), move |settings, _| {
+            if let Some(window) = window_weak.upgrade() {
+                let new_interval = settings.double("refresh-interval");
+                window.restart_refresh_timer(new_interval);
             }
-        }
+        });
     }
 
     fn setup_actions(&self) {

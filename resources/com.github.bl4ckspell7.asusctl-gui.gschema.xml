@@ -22,5 +22,10 @@
             <summary>Last viewed page</summary>
             <description>The last page the user was viewing (used when restore-last-page is enabled)</description>
         </key>
+        <key name="refresh-interval" type="d">
+            <default>0.5</default>
+            <summary>Refresh interval</summary>
+            <description>How often to refresh data from the system, in seconds (0.1-10.0)</description>
+        </key>
     </schema>
 </schemalist>

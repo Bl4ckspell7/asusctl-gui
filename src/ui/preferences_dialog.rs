@@ -68,6 +68,8 @@ impl PreferencesDialog {
         self.set_title("Preferences");
         self.set_search_enabled(false);
 
+        let settings = self.settings();
+
         // Create the General preferences page
         let general_page = adw::PreferencesPage::builder()
             .title("General")
@@ -96,9 +98,6 @@ impl PreferencesDialog {
             .subtitle("Open the page you were on when you last closed the app")
             .build();
 
-        // Load current settings
-        let settings = self.settings();
-
         // Set initial state for restore-last-page switch
         let restore_last = settings.boolean("restore-last-page");
         restore_last_row.set_active(restore_last);
@@ -120,21 +119,48 @@ impl PreferencesDialog {
         });
 
         // Connect startup-page combo
-        let settings_clone = settings;
+        let settings_clone = settings.clone();
         startup_page_row.connect_selected_notify(move |combo| {
             if let Some(page) = Page::from_index(combo.selected()) {
                 let _ = settings_clone.set_string("startup-page", page.as_str());
             }
         });
 
-        // Add rows to group (switch first, then combo)
         startup_group.add(&restore_last_row);
         startup_group.add(&startup_page_row);
-
-        // Add group to page
         general_page.add(&startup_group);
 
-        // Add page to dialog
+        // Create the Refresh group
+        let refresh_group = adw::PreferencesGroup::builder().title("General").build();
+
+        // Create refresh interval spin row (0.1-10.0 seconds)
+        let refresh_interval_row = adw::SpinRow::builder()
+            .title("Update Interval")
+            .subtitle("In seconds")
+            .adjustment(&gtk4::Adjustment::new(
+                0.5,  // default value
+                0.1,  // min
+                10.0, // max
+                0.1,  // step increment
+                1.0,  // page increment
+                0.0,  // page size
+            ))
+            .digits(2)
+            .build();
+
+        // Load current refresh interval
+        let current_interval = settings.double("refresh-interval");
+        refresh_interval_row.set_value(current_interval);
+
+        // Connect refresh interval change
+        let settings_clone = settings;
+        refresh_interval_row.connect_value_notify(move |spin_row| {
+            let _ = settings_clone.set_double("refresh-interval", spin_row.value());
+        });
+
+        refresh_group.add(&refresh_interval_row);
+        general_page.add(&refresh_group);
+
         self.add(&general_page);
     }
 }

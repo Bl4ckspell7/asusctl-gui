@@ -8,7 +8,6 @@ pub use preferences_dialog::PreferencesDialog;
 pub use theme_switcher::ThemeSwitcher;
 pub use window::AsusctlGuiWindow;
 
-use gtk4::prelude::*;
 use std::fmt;
 
 /// Trait for pages that can refresh their data
@@ -71,36 +70,6 @@ impl Page {
             2 => Some(Page::Power),
             3 => Some(Page::Slash),
             _ => None,
-        }
-    }
-
-    /// Refresh the page widget in the given stack
-    pub fn refresh_in_stack(&self, stack: &gtk4::Stack) {
-        let Some(child) = stack.child_by_name(self.as_str()) else {
-            return;
-        };
-
-        match self {
-            Page::About => {
-                if let Ok(page) = child.downcast::<AboutPage>() {
-                    page.refresh();
-                }
-            }
-            Page::Aura => {
-                if let Ok(page) = child.downcast::<AuraPage>() {
-                    page.refresh();
-                }
-            }
-            Page::Power => {
-                if let Ok(page) = child.downcast::<PowerPage>() {
-                    page.refresh();
-                }
-            }
-            Page::Slash => {
-                if let Ok(page) = child.downcast::<SlashPage>() {
-                    page.refresh();
-                }
-            }
         }
     }
 }
