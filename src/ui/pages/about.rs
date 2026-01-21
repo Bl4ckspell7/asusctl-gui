@@ -164,7 +164,7 @@ impl AboutPage {
             let row = adw::ActionRow::builder().title(name).build();
 
             let icon_name = if supported {
-                "emblem-ok-symbolic"
+                "object-select-symbolic"
             } else {
                 "window-close-symbolic"
             };
@@ -190,7 +190,7 @@ impl AboutPage {
             let row = adw::ActionRow::builder().title(name).build();
 
             let icon_name = if supported {
-                "emblem-ok-symbolic"
+                "object-select-symbolic"
             } else {
                 "window-close-symbolic"
             };
