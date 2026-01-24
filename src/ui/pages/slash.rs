@@ -22,6 +22,8 @@ mod imp {
         pub show_on_sleep: RefCell<Option<adw::SwitchRow>>,
         pub show_on_battery: RefCell<Option<adw::SwitchRow>>,
         pub show_battery_warning: RefCell<Option<adw::SwitchRow>>,
+        /// Flag to prevent signal handlers from firing during refresh
+        pub refreshing: RefCell<bool>,
     }
 
     #[glib::object_subclass]
@@ -110,17 +112,29 @@ impl SlashPage {
             .build();
 
         // Connect the switch to enable/disable slash
-        enable_row.connect_active_notify(|switch| {
-            let result = if switch.is_active() {
-                backend::enable_slash()
-            } else {
-                backend::disable_slash()
-            };
+        {
+            let this = self.clone();
+            enable_row.connect_active_notify(move |switch| {
+                if *this.imp().refreshing.borrow() {
+                    return;
+                }
+                let enabled = switch.is_active();
+                let result = if enabled {
+                    backend::enable_slash()
+                } else {
+                    backend::disable_slash()
+                };
 
-            if let Err(e) = result {
-                eprintln!("Failed to toggle slash: {e}");
-            }
-        });
+                if let Err(e) = result {
+                    eprintln!("Failed to toggle slash: {e}");
+                }
+
+                // Enable/disable brightness slider based on slash state
+                if let Some(scale) = this.imp().brightness_scale.borrow().as_ref() {
+                    scale.set_sensitive(enabled);
+                }
+            });
+        }
 
         imp.enable_switch.replace(Some(enable_row.clone()));
         power_group.add(&enable_row);
@@ -143,12 +157,18 @@ impl SlashPage {
             .build();
 
         // Connect brightness scale to set slash brightness
-        brightness_scale.connect_value_changed(|scale| {
-            let value = scale.value() as u8;
-            if let Err(e) = backend::set_slash_brightness(value) {
-                eprintln!("Failed to set slash brightness: {e}");
-            }
-        });
+        {
+            let this = self.clone();
+            brightness_scale.connect_value_changed(move |scale| {
+                if *this.imp().refreshing.borrow() {
+                    return;
+                }
+                let value = scale.value() as u8;
+                if let Err(e) = backend::set_slash_brightness(value) {
+                    eprintln!("Failed to set slash brightness: {e}");
+                }
+            });
+        }
 
         imp.brightness_scale.replace(Some(brightness_scale.clone()));
         brightness_row.add_suffix(&brightness_scale);
@@ -168,30 +188,36 @@ impl SlashPage {
             .build();
 
         // Connect mode combo to set slash mode
-        mode_combo.connect_selected_notify(|combo| {
-            let mode = match combo.selected() {
-                0 => SlashMode::Bounce,
-                1 => SlashMode::Slash,
-                2 => SlashMode::Loading,
-                3 => SlashMode::BitStream,
-                4 => SlashMode::Transmission,
-                5 => SlashMode::Flow,
-                6 => SlashMode::Flux,
-                7 => SlashMode::Phantom,
-                8 => SlashMode::Spectrum,
-                9 => SlashMode::Hazard,
-                10 => SlashMode::Interfacing,
-                11 => SlashMode::Ramp,
-                12 => SlashMode::GameOver,
-                13 => SlashMode::Start,
-                14 => SlashMode::Buzzer,
-                _ => return,
-            };
+        {
+            let this = self.clone();
+            mode_combo.connect_selected_notify(move |combo| {
+                if *this.imp().refreshing.borrow() {
+                    return;
+                }
+                let mode = match combo.selected() {
+                    0 => SlashMode::Bounce,
+                    1 => SlashMode::Slash,
+                    2 => SlashMode::Loading,
+                    3 => SlashMode::BitStream,
+                    4 => SlashMode::Transmission,
+                    5 => SlashMode::Flow,
+                    6 => SlashMode::Flux,
+                    7 => SlashMode::Phantom,
+                    8 => SlashMode::Spectrum,
+                    9 => SlashMode::Hazard,
+                    10 => SlashMode::Interfacing,
+                    11 => SlashMode::Ramp,
+                    12 => SlashMode::GameOver,
+                    13 => SlashMode::Start,
+                    14 => SlashMode::Buzzer,
+                    _ => return,
+                };
 
-            if let Err(e) = backend::set_slash_mode(mode) {
-                eprintln!("Failed to set slash mode: {e}");
-            }
-        });
+                if let Err(e) = backend::set_slash_mode(mode) {
+                    eprintln!("Failed to set slash mode: {e}");
+                }
+            });
+        }
 
         imp.mode_combo.replace(Some(mode_combo.clone()));
         mode_group.add(&mode_combo);
@@ -205,12 +231,18 @@ impl SlashPage {
             .build();
 
         // Connect interval combo to set slash interval
-        interval_combo.connect_selected_notify(|combo| {
-            let interval = combo.selected() as u8;
-            if let Err(e) = backend::set_slash_interval(interval) {
-                eprintln!("Failed to set slash interval: {e}");
-            }
-        });
+        {
+            let this = self.clone();
+            interval_combo.connect_selected_notify(move |combo| {
+                if *this.imp().refreshing.borrow() {
+                    return;
+                }
+                let interval = combo.selected() as u8;
+                if let Err(e) = backend::set_slash_interval(interval) {
+                    eprintln!("Failed to set slash interval: {e}");
+                }
+            });
+        }
 
         imp.interval_combo.replace(Some(interval_combo.clone()));
         mode_group.add(&interval_combo);
@@ -227,11 +259,17 @@ impl SlashPage {
             .title("Boot")
             .subtitle("Show animation when laptop boots")
             .build();
-        show_on_boot.connect_active_notify(|switch| {
-            if let Err(e) = backend::set_slash_show_on_boot(switch.is_active()) {
-                eprintln!("Failed to set show on boot: {e}");
-            }
-        });
+        {
+            let this = self.clone();
+            show_on_boot.connect_active_notify(move |switch| {
+                if *this.imp().refreshing.borrow() {
+                    return;
+                }
+                if let Err(e) = backend::set_slash_show_on_boot(switch.is_active()) {
+                    eprintln!("Failed to set show on boot: {e}");
+                }
+            });
+        }
         imp.show_on_boot.replace(Some(show_on_boot.clone()));
         events_group.add(&show_on_boot);
 
@@ -240,11 +278,17 @@ impl SlashPage {
             .title("Shutdown")
             .subtitle("Show animation when laptop shuts down")
             .build();
-        show_on_shutdown.connect_active_notify(|switch| {
-            if let Err(e) = backend::set_slash_show_on_shutdown(switch.is_active()) {
-                eprintln!("Failed to set show on shutdown: {e}");
-            }
-        });
+        {
+            let this = self.clone();
+            show_on_shutdown.connect_active_notify(move |switch| {
+                if *this.imp().refreshing.borrow() {
+                    return;
+                }
+                if let Err(e) = backend::set_slash_show_on_shutdown(switch.is_active()) {
+                    eprintln!("Failed to set show on shutdown: {e}");
+                }
+            });
+        }
         imp.show_on_shutdown.replace(Some(show_on_shutdown.clone()));
         events_group.add(&show_on_shutdown);
 
@@ -253,11 +297,17 @@ impl SlashPage {
             .title("Sleep")
             .subtitle("Show animation when laptop sleeps")
             .build();
-        show_on_sleep.connect_active_notify(|switch| {
-            if let Err(e) = backend::set_slash_show_on_sleep(switch.is_active()) {
-                eprintln!("Failed to set show on sleep: {e}");
-            }
-        });
+        {
+            let this = self.clone();
+            show_on_sleep.connect_active_notify(move |switch| {
+                if *this.imp().refreshing.borrow() {
+                    return;
+                }
+                if let Err(e) = backend::set_slash_show_on_sleep(switch.is_active()) {
+                    eprintln!("Failed to set show on sleep: {e}");
+                }
+            });
+        }
         imp.show_on_sleep.replace(Some(show_on_sleep.clone()));
         events_group.add(&show_on_sleep);
 
@@ -266,11 +316,17 @@ impl SlashPage {
             .title("Battery")
             .subtitle("Show animation when on battery power")
             .build();
-        show_on_battery.connect_active_notify(|switch| {
-            if let Err(e) = backend::set_slash_show_on_battery(switch.is_active()) {
-                eprintln!("Failed to set show on battery: {e}");
-            }
-        });
+        {
+            let this = self.clone();
+            show_on_battery.connect_active_notify(move |switch| {
+                if *this.imp().refreshing.borrow() {
+                    return;
+                }
+                if let Err(e) = backend::set_slash_show_on_battery(switch.is_active()) {
+                    eprintln!("Failed to set show on battery: {e}");
+                }
+            });
+        }
         imp.show_on_battery.replace(Some(show_on_battery.clone()));
         events_group.add(&show_on_battery);
 
@@ -279,11 +335,17 @@ impl SlashPage {
             .title("Low Battery Warning")
             .subtitle("Show animation when battery is low")
             .build();
-        show_battery_warning.connect_active_notify(|switch| {
-            if let Err(e) = backend::set_slash_show_battery_warning(switch.is_active()) {
-                eprintln!("Failed to set show battery warning: {e}");
-            }
-        });
+        {
+            let this = self.clone();
+            show_battery_warning.connect_active_notify(move |switch| {
+                if *this.imp().refreshing.borrow() {
+                    return;
+                }
+                if let Err(e) = backend::set_slash_show_battery_warning(switch.is_active()) {
+                    eprintln!("Failed to set show battery warning: {e}");
+                }
+            });
+        }
         imp.show_battery_warning
             .replace(Some(show_battery_warning.clone()));
         events_group.add(&show_battery_warning);
@@ -295,20 +357,28 @@ impl SlashPage {
     fn refresh_data(&self) {
         let imp = self.imp();
 
-        // Load enabled state from config file
-        if let Some(switch) = imp.enable_switch.borrow().as_ref() {
+        // Set refreshing flag to prevent signal handlers from firing
+        *imp.refreshing.borrow_mut() = true;
+
+        // Load enabled state from D-Bus
+        let slash_enabled = if let Some(switch) = imp.enable_switch.borrow().as_ref() {
             match backend::get_slash_enabled() {
                 Ok(enabled) => {
                     switch.set_active(enabled);
+                    enabled
                 }
                 Err(e) => {
                     eprintln!("Failed to get slash enabled state: {e}");
+                    false
                 }
             }
-        }
+        } else {
+            false
+        };
 
-        // Load brightness from config file
+        // Load brightness from config file and enable/disable based on slash state
         if let Some(scale) = imp.brightness_scale.borrow().as_ref() {
+            scale.set_sensitive(slash_enabled);
             match backend::get_slash_brightness() {
                 Ok(brightness) => {
                     scale.set_value(brightness as f64);
@@ -390,6 +460,9 @@ impl SlashPage {
                 switch.set_active(value);
             }
         }
+
+        // Clear refreshing flag
+        *imp.refreshing.borrow_mut() = false;
     }
 }
 
