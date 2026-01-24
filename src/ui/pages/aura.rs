@@ -14,6 +14,7 @@ mod imp {
     #[derive(Debug, Default)]
     pub struct AuraPage {
         pub brightness_buttons: RefCell<Vec<gtk4::ToggleButton>>,
+        pub refreshing: RefCell<bool>,
     }
 
     #[glib::object_subclass]
@@ -93,7 +94,11 @@ impl AuraPage {
 
             // Connect click handler to set brightness
             let level_clone = level;
+            let this = self.clone();
             btn.connect_clicked(move |button| {
+                if *this.imp().refreshing.borrow() {
+                    return;
+                }
                 if button.is_active() {
                     if let Err(e) = backend::set_keyboard_brightness(level_clone) {
                         eprintln!("Failed to set brightness: {e}");
@@ -169,6 +174,8 @@ impl AuraPage {
     fn refresh_data(&self) {
         let imp = self.imp();
 
+        *imp.refreshing.borrow_mut() = true;
+
         // Get current brightness via D-Bus and update buttons
         match backend::get_keyboard_brightness_dbus() {
             Ok(current_brightness) => {
@@ -188,6 +195,8 @@ impl AuraPage {
                 eprintln!("Failed to get keyboard brightness: {e}");
             }
         }
+
+        *imp.refreshing.borrow_mut() = false;
     }
 }
 
