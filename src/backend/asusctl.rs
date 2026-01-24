@@ -443,7 +443,7 @@ fn parse_system_info(output: &str) -> Result<SystemInfo> {
     for line in output.lines() {
         let line = line.trim();
 
-        if let Some(version) = line.strip_prefix("asusctl version:") {
+        if let Some(version) = line.strip_prefix("Software version:") {
             info.asusctl_version = version.trim().to_string();
         } else if let Some(family) = line.strip_prefix("Product family:") {
             info.product_family = family.trim().to_string();
@@ -497,11 +497,11 @@ fn parse_profile_state(output: &str) -> Result<ProfileState> {
     for line in output.lines() {
         let line = line.trim();
 
-        if let Some(profile) = line.strip_prefix("Active profile is") {
+        if let Some(profile) = line.strip_prefix("Active profile:") {
             state.active = PowerProfile::from_str(profile.trim())?;
-        } else if let Some(profile) = line.strip_prefix("Profile on AC is") {
+        } else if let Some(profile) = line.strip_prefix("AC profile") {
             state.on_ac = PowerProfile::from_str(profile.trim())?;
-        } else if let Some(profile) = line.strip_prefix("Profile on Battery is") {
+        } else if let Some(profile) = line.strip_prefix("Battery profile") {
             state.on_battery = PowerProfile::from_str(profile.trim())?;
         }
     }
@@ -608,13 +608,13 @@ pub struct SlashState {
 
 /// Get system information (version, product family, board name)
 pub fn get_system_info() -> Result<SystemInfo> {
-    let output = run_asusctl(&["--version"])?;
+    let output = run_asusctl(&["info"])?;
     parse_system_info(&output)
 }
 
 /// Get supported features for this laptop
 pub fn get_supported_features() -> Result<SupportedFeatures> {
-    let output = run_asusctl(&["--show-supported"])?;
+    let output = run_asusctl(&["info", "--show-supported"])?;
     parse_supported_features(&output)
 }
 
@@ -642,7 +642,7 @@ pub fn get_keyboard_brightness_dbus() -> Result<KeyboardBrightness> {
 
 /// Set keyboard brightness level
 pub fn set_keyboard_brightness(level: KeyboardBrightness) -> Result<()> {
-    run_asusctl(&["--kbd-bright", &level.to_string()])?;
+    run_asusctl(&["leds", "set", &level.to_string()])?;
     Ok(())
 }
 
@@ -652,7 +652,7 @@ pub fn set_keyboard_brightness(level: KeyboardBrightness) -> Result<()> {
 
 /// Get current profile state (active, on AC, on battery) via CLI
 pub fn get_profile_state() -> Result<ProfileState> {
-    let output = run_asusctl(&["profile", "--profile-get"])?;
+    let output = run_asusctl(&["profile", "get"])?;
     parse_profile_state(&output)
 }
 
@@ -668,8 +668,22 @@ pub fn set_profile(profile: PowerProfile) -> Result<()> {
     }
 
     // Fall back to asusctl
-    run_asusctl(&["profile", "--profile-set", &profile.to_string()])?;
+    run_asusctl(&["profile", "set", &profile.to_string()])?;
     eprintln!("[asusctl-gui] Set power profile to {profile}, using asusctl");
+    Ok(())
+}
+
+/// Set the power profile to use when on AC power
+pub fn set_profile_ac(profile: PowerProfile) -> Result<()> {
+    run_asusctl(&["profile", "set", &profile.to_string(), "--ac"])?;
+    eprintln!("[asusctl-gui] Set AC power profile to {profile}");
+    Ok(())
+}
+
+/// Set the power profile to use when on battery power
+pub fn set_profile_battery(profile: PowerProfile) -> Result<()> {
+    run_asusctl(&["profile", "set", &profile.to_string(), "--battery"])?;
+    eprintln!("[asusctl-gui] Set battery power profile to {profile}");
     Ok(())
 }
 
@@ -712,7 +726,7 @@ pub fn get_charge_limit_dbus() -> Result<u8> {
 
 /// Set charge limit (20-100)
 pub fn set_charge_limit(limit: u8) -> Result<()> {
-    run_asusctl(&["--chg-limit", &limit.to_string()])?;
+    run_asusctl(&["battery", "limit", &limit.to_string()])?;
     Ok(())
 }
 
