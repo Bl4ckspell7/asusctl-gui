@@ -17,6 +17,7 @@ mod imp {
         pub ac_combo: RefCell<Option<adw::ComboRow>>,
         pub battery_combo: RefCell<Option<adw::ComboRow>>,
         pub charge_scale: RefCell<Option<gtk4::Scale>>,
+        pub refreshing: RefCell<bool>,
     }
 
     #[glib::object_subclass]
@@ -120,7 +121,11 @@ impl PowerPage {
 
             // Connect toggled handler to set profile
             let profile_clone = profile;
+            let this = self.clone();
             radio.connect_toggled(move |button| {
+                if *this.imp().refreshing.borrow() {
+                    return;
+                }
                 if button.is_active() {
                     if let Err(e) = backend::set_profile(profile_clone) {
                         eprintln!("Failed to set profile: {e}");
@@ -156,16 +161,22 @@ impl PowerPage {
             .build();
 
         // Connect AC combo to set profile on AC power
-        ac_combo.connect_selected_notify(|combo| {
-            let profile = match combo.selected() {
-                0 => PowerProfile::Quiet,
-                1 => PowerProfile::Balanced,
-                _ => PowerProfile::Performance,
-            };
-            if let Err(e) = backend::set_profile_ac(profile) {
-                eprintln!("Failed to set AC profile: {e}");
-            }
-        });
+        {
+            let this = self.clone();
+            ac_combo.connect_selected_notify(move |combo| {
+                if *this.imp().refreshing.borrow() {
+                    return;
+                }
+                let profile = match combo.selected() {
+                    0 => PowerProfile::Quiet,
+                    1 => PowerProfile::Balanced,
+                    _ => PowerProfile::Performance,
+                };
+                if let Err(e) = backend::set_profile_ac(profile) {
+                    eprintln!("Failed to set AC profile: {e}");
+                }
+            });
+        }
 
         imp.ac_combo.replace(Some(ac_combo.clone()));
         ac_group.add(&ac_combo);
@@ -188,16 +199,22 @@ impl PowerPage {
             .build();
 
         // Connect battery combo to set profile on battery power
-        battery_combo.connect_selected_notify(|combo| {
-            let profile = match combo.selected() {
-                0 => PowerProfile::Quiet,
-                1 => PowerProfile::Balanced,
-                _ => PowerProfile::Performance,
-            };
-            if let Err(e) = backend::set_profile_battery(profile) {
-                eprintln!("Failed to set battery profile: {e}");
-            }
-        });
+        {
+            let this = self.clone();
+            battery_combo.connect_selected_notify(move |combo| {
+                if *this.imp().refreshing.borrow() {
+                    return;
+                }
+                let profile = match combo.selected() {
+                    0 => PowerProfile::Quiet,
+                    1 => PowerProfile::Balanced,
+                    _ => PowerProfile::Performance,
+                };
+                if let Err(e) = backend::set_profile_battery(profile) {
+                    eprintln!("Failed to set battery profile: {e}");
+                }
+            });
+        }
 
         imp.battery_combo.replace(Some(battery_combo.clone()));
         battery_group.add(&battery_combo);
@@ -222,12 +239,18 @@ impl PowerPage {
             .build();
 
         // Connect charge scale to set charge limit
-        charge_scale.connect_value_changed(|scale| {
-            let value = scale.value() as u8;
-            if let Err(e) = backend::set_charge_limit(value) {
-                eprintln!("Failed to set charge limit: {e}");
-            }
-        });
+        {
+            let this = self.clone();
+            charge_scale.connect_value_changed(move |scale| {
+                if *this.imp().refreshing.borrow() {
+                    return;
+                }
+                let value = scale.value() as u8;
+                if let Err(e) = backend::set_charge_limit(value) {
+                    eprintln!("Failed to set charge limit: {e}");
+                }
+            });
+        }
 
         imp.charge_scale.replace(Some(charge_scale.clone()));
         charge_limit_row.add_suffix(&charge_scale);
@@ -239,6 +262,8 @@ impl PowerPage {
     /// Refresh/reload all data on this page
     fn refresh_data(&self) {
         let imp = self.imp();
+
+        *imp.refreshing.borrow_mut() = true;
 
         // Get current profile state via CLI (more reliable mapping)
         match backend::get_profile_state() {
@@ -290,6 +315,8 @@ impl PowerPage {
                 }
             }
         }
+
+        *imp.refreshing.borrow_mut() = false;
     }
 }
 
