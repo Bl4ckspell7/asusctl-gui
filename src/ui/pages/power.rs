@@ -155,6 +155,18 @@ impl PowerPage {
             .selected(2) // Performance by default on AC
             .build();
 
+        // Connect AC combo to set profile on AC power
+        ac_combo.connect_selected_notify(|combo| {
+            let profile = match combo.selected() {
+                0 => PowerProfile::Quiet,
+                1 => PowerProfile::Balanced,
+                _ => PowerProfile::Performance,
+            };
+            if let Err(e) = backend::set_profile_ac(profile) {
+                eprintln!("Failed to set AC profile: {e}");
+            }
+        });
+
         imp.ac_combo.replace(Some(ac_combo.clone()));
         ac_group.add(&ac_combo);
         self.append(&ac_group);
@@ -174,6 +186,18 @@ impl PowerPage {
             ]))
             .selected(0) // Quiet by default on battery
             .build();
+
+        // Connect battery combo to set profile on battery power
+        battery_combo.connect_selected_notify(|combo| {
+            let profile = match combo.selected() {
+                0 => PowerProfile::Quiet,
+                1 => PowerProfile::Balanced,
+                _ => PowerProfile::Performance,
+            };
+            if let Err(e) = backend::set_profile_battery(profile) {
+                eprintln!("Failed to set battery profile: {e}");
+            }
+        });
 
         imp.battery_combo.replace(Some(battery_combo.clone()));
         battery_group.add(&battery_combo);
