@@ -29,6 +29,8 @@ mod imp {
             // Set up keyboard shortcuts
             app.set_accels_for_action("win.quit", &["<Control>q"]);
             app.set_accels_for_action("win.show-shortcuts", &["<Control>question"]);
+            app.set_accels_for_action("win.preferences", &["<Control>comma"]);
+            app.set_accels_for_action("win.about", &["F1"]);
 
             let window = AsusctlGuiWindow::new(app);
             window.present();
