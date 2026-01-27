@@ -148,12 +148,70 @@ pub struct ProfileState {
 // Aura Modes
 // ============================================================================
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum AuraMode {
     #[default]
     Static,
     Breathe,
-    Pulse,
+    RainbowCycle,
+    RainbowWave,
+    Highlight,
+}
+
+impl AuraMode {
+    /// Returns the CLI subcommand name for `asusctl aura <mode>`
+    pub fn cli_name(&self) -> &'static str {
+        match self {
+            Self::Static => "static",
+            Self::Breathe => "breathe",
+            Self::RainbowCycle => "rainbow-cycle",
+            Self::RainbowWave => "rainbow-wave",
+            Self::Highlight => "highlight",
+        }
+    }
+
+    /// All available modes
+    pub const ALL: &'static [AuraMode] = &[
+        Self::Static,
+        Self::Breathe,
+        Self::RainbowCycle,
+        Self::RainbowWave,
+        Self::Highlight,
+    ];
+
+    /// Short UI label (matches CLI subcommand names)
+    pub fn label(&self) -> &'static str {
+        match self {
+            Self::Static => "Static",
+            Self::Breathe => "Breathe",
+            Self::RainbowCycle => "Rainbow Cycle",
+            Self::RainbowWave => "Rainbow Wave",
+            Self::Highlight => "Highlight",
+        }
+    }
+
+    /// Whether this mode requires a colour parameter
+    pub fn needs_colour(&self) -> bool {
+        matches!(self, Self::Static | Self::Breathe | Self::Highlight)
+    }
+
+    /// Whether this mode requires a second colour parameter
+    pub fn needs_colour2(&self) -> bool {
+        matches!(self, Self::Breathe)
+    }
+
+    /// Whether this mode requires a speed parameter
+    pub fn needs_speed(&self) -> bool {
+        matches!(
+            self,
+            Self::Breathe | Self::RainbowCycle | Self::RainbowWave | Self::Highlight
+        )
+    }
+
+    /// Whether this mode requires a direction parameter
+    pub fn needs_direction(&self) -> bool {
+        matches!(self, Self::RainbowWave)
+    }
 }
 
 impl std::fmt::Display for AuraMode {
@@ -161,7 +219,9 @@ impl std::fmt::Display for AuraMode {
         match self {
             Self::Static => write!(f, "Static"),
             Self::Breathe => write!(f, "Breathe"),
-            Self::Pulse => write!(f, "Pulse"),
+            Self::RainbowCycle => write!(f, "Rainbow Cycle"),
+            Self::RainbowWave => write!(f, "Rainbow Wave"),
+            Self::Highlight => write!(f, "Highlight"),
         }
     }
 }
@@ -173,8 +233,48 @@ impl FromStr for AuraMode {
         match s.to_lowercase().as_str() {
             "static" => Ok(Self::Static),
             "breathe" => Ok(Self::Breathe),
-            "pulse" => Ok(Self::Pulse),
+            "rainbow-cycle" | "rainbowcycle" | "rainbow cycle" => Ok(Self::RainbowCycle),
+            "rainbow-wave" | "rainbowwave" | "rainbow wave" => Ok(Self::RainbowWave),
+            "highlight" => Ok(Self::Highlight),
             _ => Err(AsusctlError::ParseError(format!("Unknown aura mode: {s}"))),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum AuraSpeed {
+    Low,
+    #[default]
+    Med,
+    High,
+}
+
+impl std::fmt::Display for AuraSpeed {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Low => write!(f, "low"),
+            Self::Med => write!(f, "med"),
+            Self::High => write!(f, "high"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum AuraDirection {
+    Up,
+    Down,
+    Left,
+    #[default]
+    Right,
+}
+
+impl std::fmt::Display for AuraDirection {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Up => write!(f, "up"),
+            Self::Down => write!(f, "down"),
+            Self::Left => write!(f, "left"),
+            Self::Right => write!(f, "right"),
         }
     }
 }
@@ -262,6 +362,7 @@ pub struct SupportedFeatures {
     pub has_slash: bool,
     pub keyboard_brightness_levels: Vec<KeyboardBrightness>,
     pub aura_modes: Vec<AuraMode>,
+    pub aura_zones: Vec<String>,
     pub has_charge_control: bool,
     pub has_throttle_policy: bool,
 }
@@ -480,11 +581,31 @@ fn parse_supported_features(output: &str) -> Result<SupportedFeatures> {
 
     // Parse aura modes
     let aura_section = extract_section(output, "Supported Aura Modes:");
-    for mode in ["Static", "Breathe", "Pulse"] {
-        if aura_section.contains(mode) {
-            if let Ok(aura_mode) = AuraMode::from_str(mode) {
-                features.aura_modes.push(aura_mode);
+    for mode_name in [
+        "Static",
+        "Breathe",
+        "Pulse",
+        "RainbowCycle",
+        "RainbowWave",
+        "Highlight",
+    ] {
+        if aura_section.contains(mode_name) {
+            // Modes without a CLI subcommand (e.g. Pulse) will fail to parse
+            // and be silently skipped.
+            if let Ok(aura_mode) = AuraMode::from_str(mode_name) {
+                if !features.aura_modes.contains(&aura_mode) {
+                    features.aura_modes.push(aura_mode);
+                }
             }
+        }
+    }
+
+    // Parse aura zones
+    let zones_section = extract_section(output, "Supported Aura Zones:");
+    for line in zones_section.lines() {
+        let trimmed = line.trim().trim_matches(|c| c == ',' || c == '[' || c == ']');
+        if !trimmed.is_empty() {
+            features.aura_zones.push(trimmed.to_string());
         }
     }
 
@@ -644,6 +765,60 @@ pub fn get_keyboard_brightness_dbus() -> Result<KeyboardBrightness> {
 pub fn set_keyboard_brightness(level: KeyboardBrightness) -> Result<()> {
     run_asusctl(&["leds", "set", &level.to_string()])?;
     Ok(())
+}
+
+/// Set aura lighting mode with the given parameters.
+pub fn set_aura_mode(
+    mode: AuraMode,
+    colour: Option<&str>,
+    colour2: Option<&str>,
+    speed: Option<AuraSpeed>,
+    direction: Option<AuraDirection>,
+    zone: Option<&str>,
+) -> Result<()> {
+    let mode_name = mode.cli_name();
+    let speed_str = speed.map(|s| s.to_string());
+    let direction_str = direction.map(|d| d.to_string());
+
+    let mut args: Vec<&str> = vec!["aura", mode_name];
+
+    if mode.needs_colour() {
+        let c = colour.ok_or_else(|| {
+            AsusctlError::CommandFailed(format!("{mode} requires a colour"))
+        })?;
+        args.extend_from_slice(&["--colour", c]);
+    }
+    if mode.needs_colour2() {
+        let c2 = colour2.ok_or_else(|| {
+            AsusctlError::CommandFailed(format!("{mode} requires colour2"))
+        })?;
+        args.extend_from_slice(&["--colour2", c2]);
+    }
+    if mode.needs_direction() {
+        let d = direction_str.as_deref().ok_or_else(|| {
+            AsusctlError::CommandFailed(format!("{mode} requires direction"))
+        })?;
+        args.extend_from_slice(&["--direction", d]);
+    }
+    if mode.needs_speed() {
+        let s = speed_str.as_deref().ok_or_else(|| {
+            AsusctlError::CommandFailed(format!("{mode} requires speed"))
+        })?;
+        args.extend_from_slice(&["--speed", s]);
+    }
+    if let Some(z) = zone {
+        args.extend_from_slice(&["--zone", z]);
+    }
+
+    run_asusctl(&args)?;
+    Ok(())
+}
+
+/// Fetch the help text for a given aura mode from the CLI.
+pub fn get_aura_mode_help(mode: AuraMode) -> Option<String> {
+    run_asusctl(&["aura", mode.cli_name(), "--help"])
+        .ok()
+        .map(|s| s.trim().to_string())
 }
 
 // ============================================================================
