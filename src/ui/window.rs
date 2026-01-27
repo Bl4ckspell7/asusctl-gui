@@ -230,9 +230,13 @@ impl AsusctlGuiWindow {
         let buttons_section = gio::Menu::new();
         buttons_section.append(Some("Preferences"), Some("win.preferences"));
         buttons_section.append(Some("Keyboard Shortcuts"), Some("win.show-shortcuts"));
-        buttons_section.append(Some("Quit"), Some("win.quit"));
         buttons_section.append(Some("About"), Some("win.about"));
         menu.append_section(None, &buttons_section);
+
+        // Quit section
+        let quit_section = gio::Menu::new();
+        quit_section.append(Some("Quit"), Some("win.quit"));
+        menu.append_section(None, &quit_section);
 
         let menu_button = gtk4::MenuButton::builder()
             .icon_name("open-menu-symbolic")
@@ -374,11 +378,13 @@ impl AsusctlGuiWindow {
 
         // Create section with items
         let section = adw::ShortcutsSection::new(Some("General"));
-        section.add(adw::ShortcutsItem::new("Quit", "<Control>q"));
+        section.add(adw::ShortcutsItem::new("Preferences", "<Control>comma"));
         section.add(adw::ShortcutsItem::new(
             "Keyboard Shortcuts",
             "<Control>question",
         ));
+        section.add(adw::ShortcutsItem::new("About", "F1"));
+        section.add(adw::ShortcutsItem::new("Quit", "<Control>q"));
 
         shortcuts.add(section);
         shortcuts.present(Some(self));
