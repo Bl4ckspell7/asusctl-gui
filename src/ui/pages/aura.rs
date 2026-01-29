@@ -510,6 +510,72 @@ impl AuraPage {
             }
         }
 
+        // Get full aura mode data via D-Bus and update all controls
+        match backend::get_aura_mode_data_dbus() {
+            Ok(mode_data) => {
+                // Update mode buttons
+                let mode_buttons = imp.mode_buttons.borrow();
+                for (btn, mode) in mode_buttons.iter() {
+                    if *mode == mode_data.mode {
+                        btn.set_active(true);
+                        *imp.selected_mode.borrow_mut() = mode_data.mode;
+                        break;
+                    }
+                }
+                drop(mode_buttons);
+
+                // Update speed buttons
+                let speed_buttons = imp.speed_buttons.borrow();
+                for (btn, speed) in speed_buttons.iter() {
+                    if *speed == mode_data.speed {
+                        btn.set_active(true);
+                        break;
+                    }
+                }
+                drop(speed_buttons);
+
+                // Update direction buttons
+                let direction_buttons = imp.direction_buttons.borrow();
+                for (btn, dir) in direction_buttons.iter() {
+                    if *dir == mode_data.direction {
+                        btn.set_active(true);
+                        break;
+                    }
+                }
+                drop(direction_buttons);
+
+                // Update primary color
+                if let Some(color_btn) = imp.color_button.borrow().as_ref() {
+                    let (r, g, b) = mode_data.color1;
+                    let rgba = gtk4::gdk::RGBA::new(
+                        r as f32 / 255.0,
+                        g as f32 / 255.0,
+                        b as f32 / 255.0,
+                        1.0,
+                    );
+                    color_btn.set_rgba(&rgba);
+                }
+
+                // Update secondary color
+                if let Some(color2_btn) = imp.color2_button.borrow().as_ref() {
+                    let (r, g, b) = mode_data.color2;
+                    let rgba = gtk4::gdk::RGBA::new(
+                        r as f32 / 255.0,
+                        g as f32 / 255.0,
+                        b as f32 / 255.0,
+                        1.0,
+                    );
+                    color2_btn.set_rgba(&rgba);
+                }
+
+                // Update visibility based on the current mode
+                self.update_mode_visibility();
+            }
+            Err(e) => {
+                eprintln!("Failed to get aura mode data: {e}");
+            }
+        }
+
         *imp.refreshing.borrow_mut() = false;
     }
 }
