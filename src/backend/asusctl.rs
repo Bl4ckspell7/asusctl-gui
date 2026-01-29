@@ -241,6 +241,24 @@ impl FromStr for AuraMode {
     }
 }
 
+impl AuraMode {
+    /// Convert from D-Bus LedMode numeric value to AuraMode
+    ///
+    /// Based on asusd's AuraEffect enum (rog-aura crate):
+    /// Static = 0, Breathe = 1, Strobe = 2, Rainbow = 3, Star = 4, Rain = 5,
+    /// Highlight = 6, Laser = 7, Ripple = 8, Pulse = 9, Comet = 10, Flash = 11
+    pub fn from_dbus_value(value: u32) -> Option<Self> {
+        match value {
+            0 => Some(Self::Static),
+            1 => Some(Self::Breathe),
+            3 => Some(Self::RainbowCycle), // Rainbow in asusd
+            4 => Some(Self::RainbowWave),  // Star/RainbowWave in some versions
+            6 => Some(Self::Highlight),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum AuraSpeed {
     Low,
@@ -255,6 +273,19 @@ impl std::fmt::Display for AuraSpeed {
             Self::Low => write!(f, "low"),
             Self::Med => write!(f, "med"),
             Self::High => write!(f, "high"),
+        }
+    }
+}
+
+impl FromStr for AuraSpeed {
+    type Err = AsusctlError;
+
+    fn from_str(s: &str) -> Result<Self> {
+        match s.to_lowercase().as_str() {
+            "low" => Ok(Self::Low),
+            "med" => Ok(Self::Med),
+            "high" => Ok(Self::High),
+            _ => Err(AsusctlError::ParseError(format!("Unknown aura speed: {s}"))),
         }
     }
 }
@@ -277,6 +308,38 @@ impl std::fmt::Display for AuraDirection {
             Self::Right => write!(f, "right"),
         }
     }
+}
+
+impl FromStr for AuraDirection {
+    type Err = AsusctlError;
+
+    fn from_str(s: &str) -> Result<Self> {
+        match s.to_lowercase().as_str() {
+            "up" => Ok(Self::Up),
+            "down" => Ok(Self::Down),
+            "left" => Ok(Self::Left),
+            "right" => Ok(Self::Right),
+            _ => Err(AsusctlError::ParseError(format!(
+                "Unknown aura direction: {s}"
+            ))),
+        }
+    }
+}
+
+// ============================================================================
+// Aura Mode Data (from D-Bus LedModeData property)
+// ============================================================================
+
+/// Full aura mode state read from D-Bus LedModeData property
+#[derive(Debug, Clone, Default)]
+pub struct AuraModeData {
+    pub mode: AuraMode,
+    #[allow(dead_code)] // Reserved for future multi-zone support
+    pub zone: u32,
+    pub color1: (u8, u8, u8),
+    pub color2: (u8, u8, u8),
+    pub speed: AuraSpeed,
+    pub direction: AuraDirection,
 }
 
 // ============================================================================
@@ -765,6 +828,69 @@ pub fn get_keyboard_brightness_dbus() -> Result<KeyboardBrightness> {
 pub fn set_keyboard_brightness(level: KeyboardBrightness) -> Result<()> {
     run_asusctl(&["leds", "set", &level.to_string()])?;
     Ok(())
+}
+
+/// Get full aura mode data (mode, colors, speed, direction) via D-Bus
+///
+/// Parses the LedModeData property which has signature (uu(yyy)(yyy)ss):
+/// (mode, zone, (r1,g1,b1), (r2,g2,b2), speed, direction)
+pub fn get_aura_mode_data_dbus() -> Result<AuraModeData> {
+    let path = get_aura_path()
+        .ok_or_else(|| AsusctlError::CommandFailed("Aura D-Bus path not found".to_string()))?;
+    let output = read_dbus_property_at(path, AURA_INTERFACE, "LedModeData")?;
+
+    // Parse output like: (uu(yyy)(yyy)ss) 1 0 255 0 255 255 0 0 "Med" "Right"
+    // After the signature, values are space-separated
+    let parts: Vec<&str> = output.split_whitespace().collect();
+
+    // Expected: signature + mode + zone + r1 + g1 + b1 + r2 + g2 + b2 + speed + direction
+    if parts.len() < 11 {
+        return Err(AsusctlError::ParseError(format!(
+            "Invalid LedModeData format: {output}"
+        )));
+    }
+
+    let mode_val: u32 = parts[1]
+        .parse()
+        .map_err(|_| AsusctlError::ParseError("Invalid mode value".to_string()))?;
+    let zone: u32 = parts[2]
+        .parse()
+        .map_err(|_| AsusctlError::ParseError("Invalid zone value".to_string()))?;
+    let r1: u8 = parts[3]
+        .parse()
+        .map_err(|_| AsusctlError::ParseError("Invalid color1 R".to_string()))?;
+    let g1: u8 = parts[4]
+        .parse()
+        .map_err(|_| AsusctlError::ParseError("Invalid color1 G".to_string()))?;
+    let b1: u8 = parts[5]
+        .parse()
+        .map_err(|_| AsusctlError::ParseError("Invalid color1 B".to_string()))?;
+    let r2: u8 = parts[6]
+        .parse()
+        .map_err(|_| AsusctlError::ParseError("Invalid color2 R".to_string()))?;
+    let g2: u8 = parts[7]
+        .parse()
+        .map_err(|_| AsusctlError::ParseError("Invalid color2 G".to_string()))?;
+    let b2: u8 = parts[8]
+        .parse()
+        .map_err(|_| AsusctlError::ParseError("Invalid color2 B".to_string()))?;
+
+    // Speed and direction are quoted strings like "Med" "Right"
+    let speed_str = parts[9].trim_matches('"');
+    let direction_str = parts[10].trim_matches('"');
+
+    let mode = AuraMode::from_dbus_value(mode_val).unwrap_or_default();
+    let speed = AuraSpeed::from_str(speed_str).unwrap_or_default();
+    let direction = AuraDirection::from_str(direction_str).unwrap_or_default();
+
+    Ok(AuraModeData {
+        mode,
+        zone,
+        color1: (r1, g1, b1),
+        color2: (r2, g2, b2),
+        speed,
+        direction,
+    })
 }
 
 /// Set aura lighting mode with the given parameters.
