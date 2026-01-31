@@ -372,7 +372,7 @@ impl AuraPage {
         // Second color row (for Breathe mode)
         let color2_row = adw::ActionRow::builder()
             .title("Second Color")
-            .subtitle("Breathing target color")
+            .subtitle("Secondary effect color")
             .build();
 
         let color2_dialog = gtk4::ColorDialog::builder().build();

@@ -53,6 +53,7 @@ glib::wrapper! {
 
 // Mode names in order (index matches SlashMode enum variant order)
 const SLASH_MODES: &[(&str, &str)] = &[
+    ("Static", "Static light effect"),
     ("Bounce", "Bouncing light effect"),
     ("Slash", "Slashing light animation"),
     ("Loading", "Progress bar style animation"),
@@ -195,21 +196,22 @@ impl SlashPage {
                     return;
                 }
                 let mode = match combo.selected() {
-                    0 => SlashMode::Bounce,
-                    1 => SlashMode::Slash,
-                    2 => SlashMode::Loading,
-                    3 => SlashMode::BitStream,
-                    4 => SlashMode::Transmission,
-                    5 => SlashMode::Flow,
-                    6 => SlashMode::Flux,
-                    7 => SlashMode::Phantom,
-                    8 => SlashMode::Spectrum,
-                    9 => SlashMode::Hazard,
-                    10 => SlashMode::Interfacing,
-                    11 => SlashMode::Ramp,
-                    12 => SlashMode::GameOver,
-                    13 => SlashMode::Start,
-                    14 => SlashMode::Buzzer,
+                    0 => SlashMode::Static,
+                    1 => SlashMode::Bounce,
+                    2 => SlashMode::Slash,
+                    3 => SlashMode::Loading,
+                    4 => SlashMode::BitStream,
+                    5 => SlashMode::Transmission,
+                    6 => SlashMode::Flow,
+                    7 => SlashMode::Flux,
+                    8 => SlashMode::Phantom,
+                    9 => SlashMode::Spectrum,
+                    10 => SlashMode::Hazard,
+                    11 => SlashMode::Interfacing,
+                    12 => SlashMode::Ramp,
+                    13 => SlashMode::GameOver,
+                    14 => SlashMode::Start,
+                    15 => SlashMode::Buzzer,
                     _ => return,
                 };
 
@@ -394,21 +396,22 @@ impl SlashPage {
             match backend::get_slash_mode() {
                 Ok(mode) => {
                     let index = match mode {
-                        SlashMode::Bounce => 0,
-                        SlashMode::Slash => 1,
-                        SlashMode::Loading => 2,
-                        SlashMode::BitStream => 3,
-                        SlashMode::Transmission => 4,
-                        SlashMode::Flow => 5,
-                        SlashMode::Flux => 6,
-                        SlashMode::Phantom => 7,
-                        SlashMode::Spectrum => 8,
-                        SlashMode::Hazard => 9,
-                        SlashMode::Interfacing => 10,
-                        SlashMode::Ramp => 11,
-                        SlashMode::GameOver => 12,
-                        SlashMode::Start => 13,
-                        SlashMode::Buzzer => 14,
+                        SlashMode::Static => 0,
+                        SlashMode::Bounce => 1,
+                        SlashMode::Slash => 2,
+                        SlashMode::Loading => 3,
+                        SlashMode::BitStream => 4,
+                        SlashMode::Transmission => 5,
+                        SlashMode::Flow => 6,
+                        SlashMode::Flux => 7,
+                        SlashMode::Phantom => 8,
+                        SlashMode::Spectrum => 9,
+                        SlashMode::Hazard => 10,
+                        SlashMode::Interfacing => 11,
+                        SlashMode::Ramp => 12,
+                        SlashMode::GameOver => 13,
+                        SlashMode::Start => 14,
+                        SlashMode::Buzzer => 15,
                     };
                     combo.set_selected(index);
                 }
