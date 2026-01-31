@@ -116,7 +116,7 @@ pub fn set_aura_mode(
     let speed_str = speed.map(|s| s.to_string());
     let direction_str = direction.map(|d| d.to_string());
 
-    let mut args: Vec<&str> = vec!["aura", mode_name];
+    let mut args: Vec<&str> = vec!["aura", "effect", mode_name];
 
     if mode.needs_colour() {
         let c = colour.ok_or_else(|| {
@@ -152,7 +152,7 @@ pub fn set_aura_mode(
 
 /// Fetch the help text for a given aura mode from the CLI.
 pub fn get_aura_mode_help(mode: AuraMode) -> Option<String> {
-    run_asusctl(&["aura", mode.cli_name(), "--help"])
+    run_asusctl(&["aura", "effect", mode.cli_name(), "--help"])
         .ok()
         .map(|s| s.trim().to_string())
 }

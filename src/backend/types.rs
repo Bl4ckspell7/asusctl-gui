@@ -99,18 +99,32 @@ pub enum AuraMode {
     Breathe,
     RainbowCycle,
     RainbowWave,
+    Stars,
+    Rain,
     Highlight,
+    Laser,
+    Ripple,
+    Pulse,
+    Comet,
+    Flash,
 }
 
 impl AuraMode {
-    /// Returns the CLI subcommand name for `asusctl aura <mode>`
+    /// Returns the CLI subcommand name for `asusctl aura effect <mode>`
     pub fn cli_name(&self) -> &'static str {
         match self {
             Self::Static => "static",
             Self::Breathe => "breathe",
             Self::RainbowCycle => "rainbow-cycle",
             Self::RainbowWave => "rainbow-wave",
+            Self::Stars => "stars",
+            Self::Rain => "rain",
             Self::Highlight => "highlight",
+            Self::Laser => "laser",
+            Self::Ripple => "ripple",
+            Self::Pulse => "pulse",
+            Self::Comet => "comet",
+            Self::Flash => "flash",
         }
     }
 
@@ -120,7 +134,14 @@ impl AuraMode {
         Self::Breathe,
         Self::RainbowCycle,
         Self::RainbowWave,
+        Self::Stars,
+        Self::Rain,
         Self::Highlight,
+        Self::Laser,
+        Self::Ripple,
+        Self::Pulse,
+        Self::Comet,
+        Self::Flash,
     ];
 
     /// Short UI label (matches CLI subcommand names)
@@ -130,25 +151,50 @@ impl AuraMode {
             Self::Breathe => "Breathe",
             Self::RainbowCycle => "Rainbow Cycle",
             Self::RainbowWave => "Rainbow Wave",
+            Self::Stars => "Stars",
+            Self::Rain => "Rain",
             Self::Highlight => "Highlight",
+            Self::Laser => "Laser",
+            Self::Ripple => "Ripple",
+            Self::Pulse => "Pulse",
+            Self::Comet => "Comet",
+            Self::Flash => "Flash",
         }
     }
 
     /// Whether this mode requires a colour parameter
     pub fn needs_colour(&self) -> bool {
-        matches!(self, Self::Static | Self::Breathe | Self::Highlight)
+        matches!(
+            self,
+            Self::Static
+                | Self::Breathe
+                | Self::Stars
+                | Self::Highlight
+                | Self::Laser
+                | Self::Ripple
+                | Self::Pulse
+                | Self::Comet
+                | Self::Flash
+        )
     }
 
     /// Whether this mode requires a second colour parameter
     pub fn needs_colour2(&self) -> bool {
-        matches!(self, Self::Breathe)
+        matches!(self, Self::Breathe | Self::Stars)
     }
 
     /// Whether this mode requires a speed parameter
     pub fn needs_speed(&self) -> bool {
         matches!(
             self,
-            Self::Breathe | Self::RainbowCycle | Self::RainbowWave | Self::Highlight
+            Self::Breathe
+                | Self::RainbowCycle
+                | Self::RainbowWave
+                | Self::Stars
+                | Self::Rain
+                | Self::Highlight
+                | Self::Laser
+                | Self::Ripple
         )
     }
 
@@ -166,9 +212,15 @@ impl AuraMode {
         match value {
             0 => Some(Self::Static),
             1 => Some(Self::Breathe),
-            3 => Some(Self::RainbowCycle), // Rainbow in asusd
-            4 => Some(Self::RainbowWave),  // Star/RainbowWave in some versions
+            3 => Some(Self::RainbowCycle),
+            4 => Some(Self::Stars),
+            5 => Some(Self::Rain),
             6 => Some(Self::Highlight),
+            7 => Some(Self::Laser),
+            8 => Some(Self::Ripple),
+            9 => Some(Self::Pulse),
+            10 => Some(Self::Comet),
+            11 => Some(Self::Flash),
             _ => None,
         }
     }
@@ -181,7 +233,14 @@ impl std::fmt::Display for AuraMode {
             Self::Breathe => write!(f, "Breathe"),
             Self::RainbowCycle => write!(f, "Rainbow Cycle"),
             Self::RainbowWave => write!(f, "Rainbow Wave"),
+            Self::Stars => write!(f, "Stars"),
+            Self::Rain => write!(f, "Rain"),
             Self::Highlight => write!(f, "Highlight"),
+            Self::Laser => write!(f, "Laser"),
+            Self::Ripple => write!(f, "Ripple"),
+            Self::Pulse => write!(f, "Pulse"),
+            Self::Comet => write!(f, "Comet"),
+            Self::Flash => write!(f, "Flash"),
         }
     }
 }
@@ -195,7 +254,14 @@ impl FromStr for AuraMode {
             "breathe" => Ok(Self::Breathe),
             "rainbow-cycle" | "rainbowcycle" | "rainbow cycle" => Ok(Self::RainbowCycle),
             "rainbow-wave" | "rainbowwave" | "rainbow wave" => Ok(Self::RainbowWave),
+            "stars" => Ok(Self::Stars),
+            "rain" => Ok(Self::Rain),
             "highlight" => Ok(Self::Highlight),
+            "laser" => Ok(Self::Laser),
+            "ripple" => Ok(Self::Ripple),
+            "pulse" => Ok(Self::Pulse),
+            "comet" => Ok(Self::Comet),
+            "flash" => Ok(Self::Flash),
             _ => Err(AsusctlError::ParseError(format!("Unknown aura mode: {s}"))),
         }
     }
@@ -286,6 +352,7 @@ pub struct AuraModeData {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum SlashMode {
+    Static,
     Bounce,
     Slash,
     Loading,
@@ -307,6 +374,7 @@ pub enum SlashMode {
 impl std::fmt::Display for SlashMode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::Static => write!(f, "Static"),
             Self::Bounce => write!(f, "Bounce"),
             Self::Slash => write!(f, "Slash"),
             Self::Loading => write!(f, "Loading"),
@@ -331,6 +399,7 @@ impl FromStr for SlashMode {
 
     fn from_str(s: &str) -> Result<Self> {
         match s {
+            "Static" => Ok(Self::Static),
             "Bounce" => Ok(Self::Bounce),
             "Slash" => Ok(Self::Slash),
             "Loading" => Ok(Self::Loading),

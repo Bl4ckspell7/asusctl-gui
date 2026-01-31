@@ -76,14 +76,18 @@ fn parse_supported_features(output: &str) -> Result<SupportedFeatures> {
     for mode_name in [
         "Static",
         "Breathe",
-        "Pulse",
         "RainbowCycle",
         "RainbowWave",
+        "Stars",
+        "Rain",
         "Highlight",
+        "Laser",
+        "Ripple",
+        "Pulse",
+        "Comet",
+        "Flash",
     ] {
         if aura_section.contains(mode_name) {
-            // Modes without a CLI subcommand (e.g. Pulse) will fail to parse
-            // and be silently skipped.
             if let Ok(aura_mode) = AuraMode::from_str(mode_name) {
                 if !features.aura_modes.contains(&aura_mode) {
                     features.aura_modes.push(aura_mode);
