@@ -33,6 +33,7 @@ pub fn get_keyboard_brightness_dbus() -> Result<KeyboardBrightness> {
 /// Set keyboard brightness level.
 pub fn set_keyboard_brightness(level: KeyboardBrightness) -> Result<()> {
     run_asusctl(&["leds", "set", &level.to_string()])?;
+    eprintln!("[asusctl-gui] Set keyboard brightness to {level}");
     Ok(())
 }
 
@@ -147,6 +148,7 @@ pub fn set_aura_mode(
     }
 
     run_asusctl(&args)?;
+    eprintln!("[asusctl-gui] Set aura mode to {mode}");
     Ok(())
 }
 
