@@ -67,6 +67,7 @@ pub fn get_charge_limit_dbus() -> Result<u8> {
 /// Set charge limit (20-100).
 pub fn set_charge_limit(limit: u8) -> Result<()> {
     run_asusctl(&["battery", "limit", &limit.to_string()])?;
+    eprintln!("[asusctl-gui] Set charge limit to {limit}%");
     Ok(())
 }
 
