@@ -13,6 +13,8 @@ mod imp {
 
     #[derive(Debug, Default)]
     pub struct PowerPage {
+        pub available: RefCell<bool>,
+        pub charge_control_available: RefCell<bool>,
         pub profile_radios: RefCell<Vec<gtk4::CheckButton>>,
         pub ac_combo: RefCell<Option<adw::ComboRow>>,
         pub battery_combo: RefCell<Option<adw::ComboRow>>,
@@ -59,6 +61,22 @@ impl PowerPage {
 
     fn setup_ui(&self) {
         let imp = self.imp();
+        let features = backend::detect_features();
+
+        if !features.asusctl_installed {
+            *imp.available.borrow_mut() = false;
+            let status = adw::StatusPage::builder()
+                .icon_name("gnome-power-manager-symbolic")
+                .title("Power Profiles Unavailable")
+                .description("asusctl is not installed. Install asusctl to manage power profiles and charge control.")
+                .vexpand(true)
+                .build();
+            self.append(&status);
+            return;
+        }
+
+        *imp.available.borrow_mut() = true;
+        *imp.charge_control_available.borrow_mut() = features.has_charge_control;
 
         // Page title
         let title = gtk4::Label::builder()
@@ -220,48 +238,54 @@ impl PowerPage {
         battery_group.add(&battery_combo);
         self.append(&battery_group);
 
-        // Battery settings group
-        let battery_settings = adw::PreferencesGroup::builder()
-            .title("Battery Settings")
-            .build();
+        // Battery settings group (only if charge control is supported)
+        if features.has_charge_control {
+            let battery_settings = adw::PreferencesGroup::builder()
+                .title("Battery Settings")
+                .build();
 
-        let charge_limit_row = adw::ActionRow::builder()
-            .title("Charge Limit")
-            .subtitle("Limit maximum charge to extend battery lifespan")
-            .build();
+            let charge_limit_row = adw::ActionRow::builder()
+                .title("Charge Limit")
+                .subtitle("Limit maximum charge to extend battery lifespan")
+                .build();
 
-        let charge_scale = gtk4::Scale::builder()
-            .orientation(gtk4::Orientation::Horizontal)
-            .adjustment(&gtk4::Adjustment::new(80.0, 20.0, 100.0, 5.0, 10.0, 0.0))
-            .width_request(200)
-            .valign(gtk4::Align::Center)
-            .draw_value(true)
-            .build();
+            let charge_scale = gtk4::Scale::builder()
+                .orientation(gtk4::Orientation::Horizontal)
+                .adjustment(&gtk4::Adjustment::new(80.0, 20.0, 100.0, 5.0, 10.0, 0.0))
+                .width_request(200)
+                .valign(gtk4::Align::Center)
+                .draw_value(true)
+                .build();
 
-        // Connect charge scale to set charge limit
-        {
-            let this = self.clone();
-            charge_scale.connect_value_changed(move |scale| {
-                if *this.imp().refreshing.borrow() {
-                    return;
-                }
-                let value = scale.value() as u8;
-                if let Err(e) = backend::set_charge_limit(value) {
-                    eprintln!("Failed to set charge limit: {e}");
-                }
-            });
+            // Connect charge scale to set charge limit
+            {
+                let this = self.clone();
+                charge_scale.connect_value_changed(move |scale| {
+                    if *this.imp().refreshing.borrow() {
+                        return;
+                    }
+                    let value = scale.value() as u8;
+                    if let Err(e) = backend::set_charge_limit(value) {
+                        eprintln!("Failed to set charge limit: {e}");
+                    }
+                });
+            }
+
+            imp.charge_scale.replace(Some(charge_scale.clone()));
+            charge_limit_row.add_suffix(&charge_scale);
+            battery_settings.add(&charge_limit_row);
+
+            self.append(&battery_settings);
         }
-
-        imp.charge_scale.replace(Some(charge_scale.clone()));
-        charge_limit_row.add_suffix(&charge_scale);
-        battery_settings.add(&charge_limit_row);
-
-        self.append(&battery_settings);
     }
 
     /// Refresh/reload all data on this page
     fn refresh_data(&self) {
         let imp = self.imp();
+
+        if !*imp.available.borrow() {
+            return;
+        }
 
         *imp.refreshing.borrow_mut() = true;
 
@@ -304,14 +328,16 @@ impl PowerPage {
             }
         }
 
-        // Load charge limit via D-Bus
-        if let Some(scale) = imp.charge_scale.borrow().as_ref() {
-            match backend::get_charge_limit_dbus() {
-                Ok(limit) => {
-                    scale.set_value(limit as f64);
-                }
-                Err(e) => {
-                    eprintln!("Failed to get charge limit: {e}");
+        // Load charge limit via D-Bus (only if charge control is supported)
+        if *imp.charge_control_available.borrow() {
+            if let Some(scale) = imp.charge_scale.borrow().as_ref() {
+                match backend::get_charge_limit_dbus() {
+                    Ok(limit) => {
+                        scale.set_value(limit as f64);
+                    }
+                    Err(e) => {
+                        eprintln!("Failed to get charge limit: {e}");
+                    }
                 }
             }
         }

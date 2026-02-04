@@ -34,7 +34,7 @@ pub use types::{
 };
 
 // Re-export system functions
-pub use system::{get_supported_features, get_system_info};
+pub use system::{detect_features, get_system_info};
 
 // Re-export aura functions
 pub use aura::{

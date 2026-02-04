@@ -13,6 +13,7 @@ mod imp {
 
     #[derive(Debug, Default)]
     pub struct SlashPage {
+        pub available: RefCell<bool>,
         pub enable_switch: RefCell<Option<adw::SwitchRow>>,
         pub brightness_scale: RefCell<Option<gtk4::Scale>>,
         pub mode_combo: RefCell<Option<adw::ComboRow>>,
@@ -85,6 +86,25 @@ impl SlashPage {
 
     fn setup_ui(&self) {
         let imp = self.imp();
+        let features = backend::detect_features();
+
+        if !features.has_slash {
+            *imp.available.borrow_mut() = false;
+            let status = adw::StatusPage::builder()
+                .icon_name("display-brightness-symbolic")
+                .title("Slash Lighting Unavailable")
+                .description(if !features.asusctl_installed {
+                    "asusctl is not installed. Install asusctl to control the slash LED bar."
+                } else {
+                    "Slash LED bar is not supported on this device, or the asusd service is not running."
+                })
+                .vexpand(true)
+                .build();
+            self.append(&status);
+            return;
+        }
+
+        *imp.available.borrow_mut() = true;
 
         // Page title
         let title = gtk4::Label::builder()
@@ -358,6 +378,10 @@ impl SlashPage {
     /// Refresh/reload all data on this page
     fn refresh_data(&self) {
         let imp = self.imp();
+
+        if !*imp.available.borrow() {
+            return;
+        }
 
         // Set refreshing flag to prevent signal handlers from firing
         *imp.refreshing.borrow_mut() = true;
