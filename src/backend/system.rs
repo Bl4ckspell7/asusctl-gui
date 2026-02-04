@@ -1,10 +1,16 @@
 //! System information and feature detection.
 
 use std::str::FromStr;
+use std::sync::OnceLock;
 
-use super::dbus::run_asusctl;
-use super::error::Result;
+use super::dbus::{
+    get_aura_path, get_slash_path, read_dbus_property_at, run_asusctl, PLATFORM_INTERFACE,
+    PLATFORM_PATH,
+};
+use super::error::{AsusctlError, Result};
 use super::types::{AuraMode, KeyboardBrightness, SupportedFeatures, SystemInfo};
+
+static DETECTED_FEATURES: OnceLock<SupportedFeatures> = OnceLock::new();
 
 // ============================================================================
 // Public API
@@ -16,10 +22,81 @@ pub fn get_system_info() -> Result<SystemInfo> {
     parse_system_info(&output)
 }
 
-/// Get supported features for this laptop.
-pub fn get_supported_features() -> Result<SupportedFeatures> {
-    let output = run_asusctl(&["info", "--show-supported"])?;
-    parse_supported_features(&output)
+/// Detect available features once and cache the result for the process lifetime.
+///
+/// Tries `asusctl info --show-supported` first for the richest data.
+/// Falls back to D-Bus probing when asusctl is not installed or the service
+/// is not running.
+pub fn detect_features() -> &'static SupportedFeatures {
+    DETECTED_FEATURES.get_or_init(|| {
+        let mut features = SupportedFeatures::default();
+
+        match run_asusctl(&["info", "--show-supported"]) {
+            Ok(output) => {
+                features.asusctl_installed = true;
+                features.asusd_running = true;
+                if let Ok(parsed) = parse_supported_features(&output) {
+                    let asusctl_installed = true;
+                    let asusd_running = true;
+                    features = parsed;
+                    features.asusctl_installed = asusctl_installed;
+                    features.asusd_running = asusd_running;
+                }
+            }
+            Err(AsusctlError::NotInstalled) => {
+                features.asusctl_installed = false;
+                probe_dbus_features(&mut features);
+            }
+            Err(AsusctlError::ServiceNotRunning) => {
+                features.asusctl_installed = true;
+                features.asusd_running = false;
+                probe_dbus_features(&mut features);
+            }
+            Err(_) => {
+                features.asusctl_installed = true;
+                probe_dbus_features(&mut features);
+            }
+        }
+
+        eprintln!(
+            "[asusctl-gui] Feature detection: asusctl={}, asusd={}, aura={}, platform={}, slash={}, charge_control={}, modes={}",
+            features.asusctl_installed,
+            features.asusd_running,
+            features.has_aura,
+            features.has_platform,
+            features.has_slash,
+            features.has_charge_control,
+            features.aura_modes.len(),
+        );
+
+        features
+    })
+}
+
+/// Probe D-Bus to discover available features without the asusctl CLI.
+fn probe_dbus_features(features: &mut SupportedFeatures) {
+    if get_aura_path().is_some() {
+        features.has_aura = true;
+    }
+
+    if get_slash_path().is_some() {
+        features.has_slash = true;
+    }
+
+    if read_dbus_property_at(PLATFORM_PATH, PLATFORM_INTERFACE, "ChargeControlEndThreshold")
+        .is_ok()
+    {
+        features.has_platform = true;
+        features.has_charge_control = true;
+    }
+    if read_dbus_property_at(PLATFORM_PATH, PLATFORM_INTERFACE, "ThrottlePolicy").is_ok() {
+        features.has_platform = true;
+        features.has_throttle_policy = true;
+    }
+
+    if features.has_aura || features.has_slash || features.has_platform {
+        features.asusd_running = true;
+    }
 }
 
 // ============================================================================

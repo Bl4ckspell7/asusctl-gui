@@ -13,6 +13,7 @@ mod imp {
 
     #[derive(Debug, Default)]
     pub struct AuraPage {
+        pub available: RefCell<bool>,
         pub brightness_buttons: RefCell<Vec<gtk4::ToggleButton>>,
         pub mode_buttons: RefCell<Vec<(gtk4::ToggleButton, AuraMode)>>,
         pub speed_buttons: RefCell<Vec<(gtk4::ToggleButton, AuraSpeed)>>,
@@ -67,18 +68,32 @@ impl AuraPage {
 
     fn setup_ui(&self) {
         let imp = self.imp();
+        let features = backend::detect_features();
 
-        // Query supported features from asusctl
-        let supported = backend::get_supported_features().ok();
-        let supported_modes: Vec<AuraMode> = supported
-            .as_ref()
-            .map(|s| s.aura_modes.clone())
-            .filter(|m| !m.is_empty())
-            .unwrap_or_else(|| AuraMode::ALL.to_vec());
-        let supported_zones: Vec<String> = supported
-            .as_ref()
-            .map(|s| s.aura_zones.clone())
-            .unwrap_or_default();
+        if !features.has_aura {
+            *imp.available.borrow_mut() = false;
+            let status = adw::StatusPage::builder()
+                .icon_name("keyboard-brightness-symbolic")
+                .title("Aura Lighting Unavailable")
+                .description(if !features.asusctl_installed {
+                    "asusctl is not installed. Install asusctl to control keyboard lighting."
+                } else {
+                    "Aura keyboard lighting is not supported on this device, or the asusd service is not running."
+                })
+                .vexpand(true)
+                .build();
+            self.append(&status);
+            return;
+        }
+
+        *imp.available.borrow_mut() = true;
+
+        let supported_modes: Vec<AuraMode> = if features.aura_modes.is_empty() {
+            vec![AuraMode::Static]
+        } else {
+            features.aura_modes.clone()
+        };
+        let supported_zones: Vec<String> = features.aura_zones.clone();
 
         // Page title
         let title = gtk4::Label::builder()
@@ -487,6 +502,10 @@ impl AuraPage {
     /// Refresh/reload all data on this page
     fn refresh_data(&self) {
         let imp = self.imp();
+
+        if !*imp.available.borrow() {
+            return;
+        }
 
         *imp.refreshing.borrow_mut() = true;
 

@@ -434,6 +434,8 @@ pub struct SlashState {
 
 #[derive(Debug, Clone, Default)]
 pub struct SupportedFeatures {
+    pub asusctl_installed: bool,
+    pub asusd_running: bool,
     pub has_aura: bool,
     pub has_platform: bool,
     pub has_fan_curves: bool,

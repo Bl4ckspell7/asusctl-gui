@@ -98,23 +98,13 @@ impl AboutPage {
 
         self.append(&laptop_group);
 
-        // Supported features group (loaded once, static data)
+        // Supported features group (loaded once from cached detection)
         let features_group = adw::PreferencesGroup::builder()
             .title("Supported Features")
             .build();
 
-        match backend::get_supported_features() {
-            Ok(features) => {
-                Self::populate_features(&features_group, &features);
-            }
-            Err(e) => {
-                let error_row = adw::ActionRow::builder()
-                    .title("Error loading features")
-                    .subtitle(&e.to_string())
-                    .build();
-                features_group.add(&error_row);
-            }
-        }
+        let features = backend::detect_features();
+        Self::populate_features(&features_group, features);
 
         self.append(&features_group);
     }
@@ -152,6 +142,32 @@ impl AboutPage {
     }
 
     fn populate_features(group: &adw::PreferencesGroup, features: &backend::SupportedFeatures) {
+        // Service status
+        let service_status = [
+            ("asusctl Installed", features.asusctl_installed),
+            ("asusd Service Running", features.asusd_running),
+        ];
+
+        for (name, available) in service_status {
+            let row = adw::ActionRow::builder().title(name).build();
+
+            let icon_name = if available {
+                "object-select-symbolic"
+            } else {
+                "window-close-symbolic"
+            };
+
+            let icon = gtk4::Image::from_icon_name(icon_name);
+            if available {
+                icon.add_css_class("success");
+            } else {
+                icon.add_css_class("error");
+            }
+            row.add_suffix(&icon);
+
+            group.add(&row);
+        }
+
         // Core features
         let core_features = [
             ("Aura (Keyboard Lighting)", features.has_aura),
