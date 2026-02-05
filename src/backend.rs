@@ -38,8 +38,8 @@ pub use system::{detect_features, get_system_info};
 
 // Re-export aura functions
 pub use aura::{
-    get_aura_mode_data_dbus, get_aura_mode_help, get_keyboard_brightness_dbus, set_aura_mode,
-    set_keyboard_brightness,
+    get_aura_mode_data_dbus, get_aura_mode_help, get_keyboard_brightness_dbus, is_rainbow_running,
+    set_aura_mode, set_keyboard_brightness, start_rainbow, stop_rainbow,
 };
 
 // Re-export power functions
