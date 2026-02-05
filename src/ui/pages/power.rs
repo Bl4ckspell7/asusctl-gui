@@ -1,5 +1,6 @@
 use adw::prelude::*;
 use gtk4::glib;
+use gtk4::glib::prelude::ObjectExt;
 use gtk4::prelude::*;
 use gtk4::subclass::prelude::*;
 use libadwaita as adw;
@@ -292,19 +293,27 @@ impl PowerPage {
         // Get current profile state via CLI (more reliable mapping)
         match backend::get_profile_state() {
             Ok(state) => {
-                let radios = imp.profile_radios.borrow();
-                let index = match state.active {
-                    PowerProfile::Quiet => 0,
-                    PowerProfile::Balanced => 1,
-                    PowerProfile::Performance => 2,
-                };
+                // Update profile radios
+                {
+                    let radios = imp.profile_radios.borrow();
+                    let index = match state.active {
+                        PowerProfile::Quiet => 0,
+                        PowerProfile::Balanced => 1,
+                        PowerProfile::Performance => 2,
+                    };
 
-                if let Some(radio) = radios.get(index) {
-                    radio.set_active(true);
+                    // Freeze all radios to prevent GTK state accounting issues
+                    // Guards auto-call thaw_notify when dropped
+                    let _guards: Vec<_> =
+                        radios.iter().map(|radio| radio.freeze_notify()).collect();
+                    if let Some(radio) = radios.get(index) {
+                        radio.set_active(true);
+                    }
                 }
 
                 // Set AC combo
                 if let Some(combo) = imp.ac_combo.borrow().as_ref() {
+                    let _guard = combo.freeze_notify();
                     let ac_index = match state.on_ac {
                         PowerProfile::Quiet => 0,
                         PowerProfile::Balanced => 1,
@@ -315,6 +324,7 @@ impl PowerPage {
 
                 // Set battery combo
                 if let Some(combo) = imp.battery_combo.borrow().as_ref() {
+                    let _guard = combo.freeze_notify();
                     let bat_index = match state.on_battery {
                         PowerProfile::Quiet => 0,
                         PowerProfile::Balanced => 1,
@@ -333,6 +343,7 @@ impl PowerPage {
             if let Some(scale) = imp.charge_scale.borrow().as_ref() {
                 match backend::get_charge_limit_dbus() {
                     Ok(limit) => {
+                        let _guard = scale.freeze_notify();
                         scale.set_value(limit as f64);
                     }
                     Err(e) => {

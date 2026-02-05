@@ -1,5 +1,6 @@
 use adw::prelude::*;
 use gtk4::glib;
+use gtk4::glib::prelude::ObjectExt;
 use gtk4::prelude::*;
 use gtk4::subclass::prelude::*;
 use libadwaita as adw;
@@ -617,6 +618,9 @@ impl AuraPage {
                     KeyboardBrightness::High => 3,
                 };
 
+                // Freeze all buttons to prevent GTK state accounting issues
+                // Guards auto-call thaw_notify when dropped
+                let _guards: Vec<_> = buttons.iter().map(|btn| btn.freeze_notify()).collect();
                 if let Some(btn) = buttons.get(index) {
                     btn.set_active(true);
                 }
@@ -630,38 +634,50 @@ impl AuraPage {
         match backend::get_aura_mode_data_dbus() {
             Ok(mode_data) => {
                 // Update mode buttons
-                let mode_buttons = imp.mode_buttons.borrow();
-                for (btn, mode) in mode_buttons.iter() {
-                    if *mode == mode_data.mode {
-                        btn.set_active(true);
-                        *imp.selected_mode.borrow_mut() = mode_data.mode;
-                        break;
+                {
+                    let mode_buttons = imp.mode_buttons.borrow();
+                    let _guards: Vec<_> =
+                        mode_buttons.iter().map(|(btn, _)| btn.freeze_notify()).collect();
+                    for (btn, mode) in mode_buttons.iter() {
+                        if *mode == mode_data.mode {
+                            btn.set_active(true);
+                            *imp.selected_mode.borrow_mut() = mode_data.mode;
+                            break;
+                        }
                     }
                 }
-                drop(mode_buttons);
 
                 // Update speed buttons
-                let speed_buttons = imp.speed_buttons.borrow();
-                for (btn, speed) in speed_buttons.iter() {
-                    if *speed == mode_data.speed {
-                        btn.set_active(true);
-                        break;
+                {
+                    let speed_buttons = imp.speed_buttons.borrow();
+                    let _guards: Vec<_> =
+                        speed_buttons.iter().map(|(btn, _)| btn.freeze_notify()).collect();
+                    for (btn, speed) in speed_buttons.iter() {
+                        if *speed == mode_data.speed {
+                            btn.set_active(true);
+                            break;
+                        }
                     }
                 }
-                drop(speed_buttons);
 
                 // Update direction buttons
-                let direction_buttons = imp.direction_buttons.borrow();
-                for (btn, dir) in direction_buttons.iter() {
-                    if *dir == mode_data.direction {
-                        btn.set_active(true);
-                        break;
+                {
+                    let direction_buttons = imp.direction_buttons.borrow();
+                    let _guards: Vec<_> = direction_buttons
+                        .iter()
+                        .map(|(btn, _)| btn.freeze_notify())
+                        .collect();
+                    for (btn, dir) in direction_buttons.iter() {
+                        if *dir == mode_data.direction {
+                            btn.set_active(true);
+                            break;
+                        }
                     }
                 }
-                drop(direction_buttons);
 
-                // Update primary color
+                // Update primary color (guard prevents callback during set_rgba)
                 if let Some(color_btn) = imp.color_button.borrow().as_ref() {
+                    let _guard = color_btn.freeze_notify();
                     let (r, g, b) = mode_data.color1;
                     let rgba = gtk4::gdk::RGBA::new(
                         r as f32 / 255.0,
@@ -674,6 +690,7 @@ impl AuraPage {
 
                 // Update secondary color
                 if let Some(color2_btn) = imp.color2_button.borrow().as_ref() {
+                    let _guard = color2_btn.freeze_notify();
                     let (r, g, b) = mode_data.color2;
                     let rgba = gtk4::gdk::RGBA::new(
                         r as f32 / 255.0,
@@ -695,6 +712,7 @@ impl AuraPage {
         // Check rainbow status and update UI accordingly
         let rainbow_running = backend::is_rainbow_running();
         if let Some(switch) = imp.rainbow_switch.borrow().as_ref() {
+            let _guard = switch.freeze_notify();
             switch.set_active(rainbow_running);
         }
         if let Some(group) = imp.mode_group.borrow().as_ref() {
