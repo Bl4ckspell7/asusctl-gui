@@ -1,9 +1,10 @@
 //! Aura lighting and keyboard brightness control.
 
+use std::process::{Command, Stdio};
 use std::str::FromStr;
 
 use super::dbus::{
-    get_aura_path, parse_dbus_uint, read_dbus_property_at, run_asusctl, AURA_INTERFACE,
+    AURA_INTERFACE, get_aura_path, parse_dbus_uint, read_dbus_property_at, run_asusctl,
 };
 use super::error::{AsusctlError, Result};
 use super::types::{AuraDirection, AuraMode, AuraModeData, AuraSpeed, KeyboardBrightness};
@@ -120,27 +121,25 @@ pub fn set_aura_mode(
     let mut args: Vec<&str> = vec!["aura", "effect", mode_name];
 
     if mode.needs_colour() {
-        let c = colour.ok_or_else(|| {
-            AsusctlError::CommandFailed(format!("{mode} requires a colour"))
-        })?;
+        let c = colour
+            .ok_or_else(|| AsusctlError::CommandFailed(format!("{mode} requires a colour")))?;
         args.extend_from_slice(&["--colour", c]);
     }
     if mode.needs_colour2() {
-        let c2 = colour2.ok_or_else(|| {
-            AsusctlError::CommandFailed(format!("{mode} requires colour2"))
-        })?;
+        let c2 = colour2
+            .ok_or_else(|| AsusctlError::CommandFailed(format!("{mode} requires colour2")))?;
         args.extend_from_slice(&["--colour2", c2]);
     }
     if mode.needs_direction() {
-        let d = direction_str.as_deref().ok_or_else(|| {
-            AsusctlError::CommandFailed(format!("{mode} requires direction"))
-        })?;
+        let d = direction_str
+            .as_deref()
+            .ok_or_else(|| AsusctlError::CommandFailed(format!("{mode} requires direction")))?;
         args.extend_from_slice(&["--direction", d]);
     }
     if mode.needs_speed() {
-        let s = speed_str.as_deref().ok_or_else(|| {
-            AsusctlError::CommandFailed(format!("{mode} requires speed"))
-        })?;
+        let s = speed_str
+            .as_deref()
+            .ok_or_else(|| AsusctlError::CommandFailed(format!("{mode} requires speed")))?;
         args.extend_from_slice(&["--speed", s]);
     }
     if let Some(z) = zone {
@@ -157,6 +156,131 @@ pub fn get_aura_mode_help(mode: AuraMode) -> Option<String> {
     run_asusctl(&["aura", "effect", mode.cli_name(), "--help"])
         .ok()
         .map(|s| s.trim().to_string())
+}
+
+// ============================================================================
+// Public API - Custom Rainbow Effect
+// ============================================================================
+
+const RAINBOW_STEPS: u32 = 240;
+
+/// Get the path to the rainbow PID file.
+fn rainbow_pid_path() -> std::path::PathBuf {
+    let state_dir = std::env::var("XDG_STATE_HOME").unwrap_or_else(|_| {
+        let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+        format!("{home}/.local/state")
+    });
+    std::path::PathBuf::from(state_dir)
+        .join("asusctl-gui")
+        .join("rainbow.pid")
+}
+
+/// Check whether the rainbow process is currently running.
+pub fn is_rainbow_running() -> bool {
+    let pid_path = rainbow_pid_path();
+    let pid_str = match std::fs::read_to_string(&pid_path) {
+        Ok(s) => s.trim().to_string(),
+        Err(_) => return false,
+    };
+
+    if std::path::Path::new(&format!("/proc/{pid_str}")).exists() {
+        true
+    } else {
+        // Stale PID file, clean up
+        let _ = std::fs::remove_file(&pid_path);
+        false
+    }
+}
+
+/// Stop the rainbow process if it is running.
+pub fn stop_rainbow() -> Result<()> {
+    let pid_path = rainbow_pid_path();
+    let pid_str = match std::fs::read_to_string(&pid_path) {
+        Ok(s) => s.trim().to_string(),
+        Err(_) => return Ok(()),
+    };
+
+    let _ = Command::new("kill").arg(&pid_str).output();
+    let _ = std::fs::remove_file(&pid_path);
+    eprintln!("[asusctl-gui] Stopped rainbow effect");
+    Ok(())
+}
+
+/// Convert HSV to a hex RGB string.
+/// Hue: 0.0-360.0, Saturation: 0.0-1.0, Value: 0.0-1.0
+fn hsv_to_hex(h: f64, s: f64, v: f64) -> String {
+    let c = v * s;
+    let x = c * (1.0 - ((h / 60.0) % 2.0 - 1.0).abs());
+    let m = v - c;
+
+    let (r, g, b) = if h < 60.0 {
+        (c, x, 0.0)
+    } else if h < 120.0 {
+        (x, c, 0.0)
+    } else if h < 180.0 {
+        (0.0, c, x)
+    } else if h < 240.0 {
+        (0.0, x, c)
+    } else if h < 300.0 {
+        (x, 0.0, c)
+    } else {
+        (c, 0.0, x)
+    };
+
+    let r = ((r + m) * 255.0) as u8;
+    let g = ((g + m) * 255.0) as u8;
+    let b = ((b + m) * 255.0) as u8;
+
+    format!("{r:02x}{g:02x}{b:02x}")
+}
+
+/// Start the rainbow effect as a detached background process.
+///
+/// Precomputes all hex colors in Rust, then spawns a bash script via
+/// `setsid --fork` that cycles through them. The process survives app close.
+pub fn start_rainbow(speed: u32) -> Result<()> {
+    stop_rainbow()?;
+
+    let delay = 0.5 / (speed.max(1) as f64).powf(3.7);
+
+    // Precompute all rainbow colors
+    let colors: Vec<String> = (0..RAINBOW_STEPS)
+        .map(|i| {
+            let hue = i as f64 * 360.0 / RAINBOW_STEPS as f64;
+            hsv_to_hex(hue, 1.0, 1.0)
+        })
+        .collect();
+
+    let pid_path = rainbow_pid_path();
+    let pid_dir = pid_path.parent().unwrap();
+
+    std::fs::create_dir_all(pid_dir)
+        .map_err(|e| AsusctlError::CommandFailed(format!("Failed to create state dir: {e}")))?;
+
+    let colors_str = colors.join(" ");
+    let pid_path_str = pid_path.display();
+    let script = format!(
+        "P=\"{pid_path_str}\"\n\
+         trap 'rm -f \"$P\"' EXIT\n\
+         echo $$ > \"$P\"\n\
+         while true; do\n\
+         for c in {colors_str}; do\n\
+         asusctl aura effect static --colour \"$c\" 2>/dev/null\n\
+         sleep {delay:.6}\n\
+         done\n\
+         done"
+    );
+
+    Command::new("setsid")
+        .args(["--fork", "bash", "-c", &script])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .output()
+        .map_err(|e| AsusctlError::CommandFailed(format!("Failed to start rainbow: {e}")))?;
+
+    eprintln!("[asusctl-gui] Started rainbow effect (speed={speed}, delay={delay:.6})");
+    Ok(())
 }
 
 // ============================================================================

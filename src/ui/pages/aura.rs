@@ -27,6 +27,11 @@ mod imp {
         pub zone_dropdown: RefCell<Option<gtk4::DropDown>>,
         pub selected_mode: RefCell<AuraMode>,
         pub refreshing: RefCell<bool>,
+        // Custom effects
+        pub mode_group: RefCell<Option<adw::PreferencesGroup>>,
+        pub color_group: RefCell<Option<adw::PreferencesGroup>>,
+        pub rainbow_switch: RefCell<Option<adw::SwitchRow>>,
+        pub rainbow_speed_scale: RefCell<Option<gtk4::Scale>>,
     }
 
     #[glib::object_subclass]
@@ -410,6 +415,94 @@ impl AuraPage {
 
         self.append(&color_group);
 
+        // Custom Effects group
+        let settings = gtk4::gio::Settings::new("com.github.bl4ckspell7.asusctl-gui");
+
+        let custom_group = adw::PreferencesGroup::builder()
+            .title("Custom Effects")
+            .description("Custom lighting effects managed by this application")
+            .build();
+
+        let rainbow_switch = adw::SwitchRow::builder()
+            .title("Rainbow Effect")
+            .subtitle("Cycle through all colors continuously")
+            .build();
+
+        let rainbow_speed_row = adw::ActionRow::builder()
+            .title("Speed")
+            .subtitle("How fast colors cycle")
+            .build();
+        let rainbow_speed_adjustment = gtk4::Adjustment::new(
+            settings.uint("rainbow-speed") as f64,
+            1.0,
+            10.0,
+            1.0,
+            1.0,
+            0.0,
+        );
+        let speed_scale = gtk4::Scale::builder()
+            .adjustment(&rainbow_speed_adjustment)
+            .draw_value(true)
+            .digits(0)
+            .hexpand(true)
+            .valign(gtk4::Align::Center)
+            .orientation(gtk4::Orientation::Horizontal)
+            .build();
+        speed_scale.set_size_request(150, -1);
+        rainbow_speed_row.add_suffix(&speed_scale);
+
+        custom_group.add(&rainbow_switch);
+        custom_group.add(&rainbow_speed_row);
+        self.append(&custom_group);
+
+        // Rainbow switch signal handler
+        {
+            let this = self.clone();
+            let mode_group_ref = mode_group.clone();
+            let color_group_ref = color_group.clone();
+            let speed_scale_ref = speed_scale.clone();
+            rainbow_switch.connect_active_notify(move |switch| {
+                if *this.imp().refreshing.borrow() {
+                    return;
+                }
+                if switch.is_active() {
+                    let speed = speed_scale_ref.value() as u32;
+                    if let Err(e) = backend::start_rainbow(speed) {
+                        eprintln!("Failed to start rainbow: {e}");
+                    }
+                    mode_group_ref.set_sensitive(false);
+                    color_group_ref.set_sensitive(false);
+                } else {
+                    if let Err(e) = backend::stop_rainbow() {
+                        eprintln!("Failed to stop rainbow: {e}");
+                    }
+                    mode_group_ref.set_sensitive(true);
+                    color_group_ref.set_sensitive(true);
+                }
+            });
+        }
+
+        // Speed scale: save to settings and restart if running
+        {
+            let settings_clone = settings;
+            let this = self.clone();
+            speed_scale.connect_value_changed(move |scale| {
+                if *this.imp().refreshing.borrow() {
+                    return;
+                }
+                let _ = settings_clone.set_uint("rainbow-speed", scale.value() as u32);
+                // Restart rainbow if currently running
+                if let Some(switch) = this.imp().rainbow_switch.borrow().as_ref() {
+                    if switch.is_active() {
+                        let speed = scale.value() as u32;
+                        if let Err(e) = backend::start_rainbow(speed) {
+                            eprintln!("Failed to restart rainbow: {e}");
+                        }
+                    }
+                }
+            });
+        }
+
         // Store references
         imp.mode_buttons.replace(mode_btns);
         imp.speed_buttons.replace(speed_btns);
@@ -421,6 +514,10 @@ impl AuraPage {
         imp.zone_dropdown.replace(Some(zone_dropdown));
         imp.color_row.replace(Some(color_row));
         imp.color2_row.replace(Some(color2_row));
+        imp.mode_group.replace(Some(mode_group));
+        imp.color_group.replace(Some(color_group));
+        imp.rainbow_switch.replace(Some(rainbow_switch));
+        imp.rainbow_speed_scale.replace(Some(speed_scale));
 
         // Set default mode and visibility
         mode_btns_first_active(&imp.mode_buttons.borrow());
@@ -593,6 +690,18 @@ impl AuraPage {
             Err(e) => {
                 eprintln!("Failed to get aura mode data: {e}");
             }
+        }
+
+        // Check rainbow status and update UI accordingly
+        let rainbow_running = backend::is_rainbow_running();
+        if let Some(switch) = imp.rainbow_switch.borrow().as_ref() {
+            switch.set_active(rainbow_running);
+        }
+        if let Some(group) = imp.mode_group.borrow().as_ref() {
+            group.set_sensitive(!rainbow_running);
+        }
+        if let Some(group) = imp.color_group.borrow().as_ref() {
+            group.set_sensitive(!rainbow_running);
         }
 
         *imp.refreshing.borrow_mut() = false;
