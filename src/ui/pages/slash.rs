@@ -1,5 +1,6 @@
 use adw::prelude::*;
 use gtk4::glib;
+use gtk4::glib::prelude::ObjectExt;
 use gtk4::prelude::*;
 use gtk4::subclass::prelude::*;
 use libadwaita as adw;
@@ -390,6 +391,7 @@ impl SlashPage {
         let slash_enabled = if let Some(switch) = imp.enable_switch.borrow().as_ref() {
             match backend::get_slash_enabled() {
                 Ok(enabled) => {
+                    let _guard = switch.freeze_notify();
                     switch.set_active(enabled);
                     enabled
                 }
@@ -407,6 +409,7 @@ impl SlashPage {
             scale.set_sensitive(slash_enabled);
             match backend::get_slash_brightness() {
                 Ok(brightness) => {
+                    let _guard = scale.freeze_notify();
                     scale.set_value(brightness as f64);
                 }
                 Err(e) => {
@@ -437,6 +440,7 @@ impl SlashPage {
                         SlashMode::Start => 14,
                         SlashMode::Buzzer => 15,
                     };
+                    let _guard = combo.freeze_notify();
                     combo.set_selected(index);
                 }
                 Err(e) => {
@@ -449,6 +453,7 @@ impl SlashPage {
         if let Some(combo) = imp.interval_combo.borrow().as_ref() {
             match backend::get_slash_interval() {
                 Ok(interval) => {
+                    let _guard = combo.freeze_notify();
                     combo.set_selected(interval as u32);
                 }
                 Err(e) => {
@@ -460,30 +465,35 @@ impl SlashPage {
         // Load show-on states from D-Bus
         if let Some(switch) = imp.show_on_boot.borrow().as_ref() {
             if let Ok(value) = backend::get_slash_show_on_boot() {
+                let _guard = switch.freeze_notify();
                 switch.set_active(value);
             }
         }
 
         if let Some(switch) = imp.show_on_shutdown.borrow().as_ref() {
             if let Ok(value) = backend::get_slash_show_on_shutdown() {
+                let _guard = switch.freeze_notify();
                 switch.set_active(value);
             }
         }
 
         if let Some(switch) = imp.show_on_sleep.borrow().as_ref() {
             if let Ok(value) = backend::get_slash_show_on_sleep() {
+                let _guard = switch.freeze_notify();
                 switch.set_active(value);
             }
         }
 
         if let Some(switch) = imp.show_on_battery.borrow().as_ref() {
             if let Ok(value) = backend::get_slash_show_on_battery() {
+                let _guard = switch.freeze_notify();
                 switch.set_active(value);
             }
         }
 
         if let Some(switch) = imp.show_battery_warning.borrow().as_ref() {
             if let Ok(value) = backend::get_slash_show_battery_warning() {
+                let _guard = switch.freeze_notify();
                 switch.set_active(value);
             }
         }
