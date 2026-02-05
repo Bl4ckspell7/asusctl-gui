@@ -25,7 +25,7 @@
         <key name="refresh-interval" type="d">
             <default>0.5</default>
             <summary>Refresh interval</summary>
-            <description>How often to refresh data from the system, in seconds (0.1-10.0)</description>
+            <description>How often to refresh data from the system, in seconds (0.1-1.0)</description>
         </key>
         <key name="rainbow-speed" type="u">
             <default>5</default>

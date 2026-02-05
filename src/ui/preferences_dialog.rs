@@ -133,19 +133,19 @@ impl PreferencesDialog {
         // Create the Refresh group
         let refresh_group = adw::PreferencesGroup::builder().title("General").build();
 
-        // Create refresh interval spin row (0.1-10.0 seconds)
+        // Create refresh interval spin row (0.1-1.0 seconds)
         let refresh_interval_row = adw::SpinRow::builder()
             .title("Update Interval")
             .subtitle("In seconds")
             .adjustment(&gtk4::Adjustment::new(
-                0.5,  // default value
-                0.1,  // min
-                10.0, // max
-                0.1,  // step increment
-                1.0,  // page increment
-                0.0,  // page size
+                0.5, // default value
+                0.1, // min
+                1.0, // max
+                0.1, // step increment
+                0.1, // page increment
+                0.0, // page size
             ))
-            .digits(2)
+            .digits(1)
             .build();
 
         // Load current refresh interval
