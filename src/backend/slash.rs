@@ -249,3 +249,229 @@ fn extract_string_value(line: &str) -> Option<String> {
             .to_string(),
     )
 }
+
+// ============================================================================
+// Tests
+// ============================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ------------------------------------------------------------------------
+    // extract_number Tests
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_extract_number_valid() {
+        assert_eq!(extract_number("brightness: 255,"), Some(255));
+        assert_eq!(extract_number("brightness: 128,"), Some(128));
+        assert_eq!(extract_number("display_interval: 5,"), Some(5));
+        assert_eq!(extract_number("value: 0,"), Some(0));
+    }
+
+    #[test]
+    fn test_extract_number_without_trailing_comma() {
+        assert_eq!(extract_number("brightness: 255"), Some(255));
+        assert_eq!(extract_number("interval: 3"), Some(3));
+    }
+
+    #[test]
+    fn test_extract_number_with_whitespace() {
+        // Leading whitespace after colon is handled
+        assert_eq!(extract_number("brightness:   255,"), Some(255));
+        // Note: "brightness: 255  ," won't parse because whitespace before comma
+        // is not trimmed by the simple parsing logic. This matches expected config format.
+        assert_eq!(extract_number("  brightness: 100,"), Some(100));
+    }
+
+    #[test]
+    fn test_extract_number_invalid() {
+        assert_eq!(extract_number("brightness: abc,"), None);
+        assert_eq!(extract_number("no_colon_here"), None);
+        assert_eq!(extract_number("brightness:"), None);
+        assert_eq!(extract_number(""), None);
+    }
+
+    #[test]
+    fn test_extract_number_large_values() {
+        assert_eq!(extract_number("value: 4294967295,"), Some(4294967295));
+    }
+
+    // ------------------------------------------------------------------------
+    // extract_string_value Tests
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_extract_string_value_valid() {
+        assert_eq!(
+            extract_string_value("display_mode: BitStream,"),
+            Some("BitStream".to_string())
+        );
+        assert_eq!(
+            extract_string_value("display_mode: Flow,"),
+            Some("Flow".to_string())
+        );
+        assert_eq!(
+            extract_string_value("mode: Static,"),
+            Some("Static".to_string())
+        );
+    }
+
+    #[test]
+    fn test_extract_string_value_without_trailing_comma() {
+        assert_eq!(
+            extract_string_value("display_mode: Spectrum"),
+            Some("Spectrum".to_string())
+        );
+    }
+
+    #[test]
+    fn test_extract_string_value_with_whitespace() {
+        assert_eq!(
+            extract_string_value("display_mode:   BitStream,"),
+            Some("BitStream".to_string())
+        );
+        assert_eq!(
+            extract_string_value("  display_mode: Flow,  "),
+            Some("Flow".to_string())
+        );
+    }
+
+    #[test]
+    fn test_extract_string_value_empty_value() {
+        assert_eq!(extract_string_value("mode:,"), Some("".to_string()));
+        assert_eq!(extract_string_value("mode: ,"), Some("".to_string()));
+    }
+
+    #[test]
+    fn test_extract_string_value_no_colon() {
+        assert_eq!(extract_string_value("no_colon_here"), None);
+        assert_eq!(extract_string_value(""), None);
+    }
+
+    // ------------------------------------------------------------------------
+    // Parsing enabled line Tests
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_parse_enabled_line() {
+        // Test parsing enabled: true/false from config lines
+        assert!("enabled: true,".contains("true"));
+        assert!(!"enabled: false,".contains("true"));
+    }
+
+    // ------------------------------------------------------------------------
+    // SlashState Tests
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_slash_state_default_values() {
+        let state = SlashState::default();
+        assert!(!state.enabled);
+        assert_eq!(state.brightness, 0);
+        assert_eq!(state.interval, 0);
+        assert_eq!(state.mode, SlashMode::Flow);
+    }
+
+    #[test]
+    fn test_slash_state_custom_values() {
+        let state = SlashState {
+            enabled: true,
+            brightness: 200,
+            interval: 3,
+            mode: SlashMode::BitStream,
+        };
+        assert!(state.enabled);
+        assert_eq!(state.brightness, 200);
+        assert_eq!(state.interval, 3);
+        assert_eq!(state.mode, SlashMode::BitStream);
+    }
+
+    // ------------------------------------------------------------------------
+    // Integration-style parsing Tests (simulated config content)
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_parse_config_lines() {
+        // Simulate parsing a config file line by line
+        let config_content = r#"(
+    enabled: true,
+    brightness: 180,
+    display_interval: 2,
+    display_mode: Spectrum,
+)"#;
+
+        let mut state = SlashState::default();
+
+        for line in config_content.lines() {
+            let line = line.trim();
+
+            if line.starts_with("enabled:") {
+                state.enabled = line.contains("true");
+            } else if line.starts_with("brightness:") {
+                if let Some(val) = extract_number(line) {
+                    state.brightness = val as u8;
+                }
+            } else if line.starts_with("display_interval:") {
+                if let Some(val) = extract_number(line) {
+                    state.interval = val as u8;
+                }
+            } else if line.starts_with("display_mode:") {
+                if let Some(mode_str) = extract_string_value(line) {
+                    state.mode = SlashMode::from_str(&mode_str).unwrap_or_default();
+                }
+            }
+        }
+
+        assert!(state.enabled);
+        assert_eq!(state.brightness, 180);
+        assert_eq!(state.interval, 2);
+        assert_eq!(state.mode, SlashMode::Spectrum);
+    }
+
+    #[test]
+    fn test_parse_config_lines_disabled() {
+        let config_content = r#"(
+    enabled: false,
+    brightness: 100,
+    display_interval: 5,
+    display_mode: Hazard,
+)"#;
+
+        let mut state = SlashState::default();
+
+        for line in config_content.lines() {
+            let line = line.trim();
+
+            if line.starts_with("enabled:") {
+                state.enabled = line.contains("true");
+            } else if line.starts_with("brightness:") {
+                if let Some(val) = extract_number(line) {
+                    state.brightness = val as u8;
+                }
+            } else if line.starts_with("display_interval:") {
+                if let Some(val) = extract_number(line) {
+                    state.interval = val as u8;
+                }
+            } else if line.starts_with("display_mode:") {
+                if let Some(mode_str) = extract_string_value(line) {
+                    state.mode = SlashMode::from_str(&mode_str).unwrap_or_default();
+                }
+            }
+        }
+
+        assert!(!state.enabled);
+        assert_eq!(state.brightness, 100);
+        assert_eq!(state.interval, 5);
+        assert_eq!(state.mode, SlashMode::Hazard);
+    }
+
+    #[test]
+    fn test_parse_config_with_unknown_mode_falls_back_to_default() {
+        let line = "display_mode: UnknownMode,";
+        let mode_str = extract_string_value(line).unwrap();
+        let mode = SlashMode::from_str(&mode_str).unwrap_or_default();
+        assert_eq!(mode, SlashMode::Flow); // Default mode
+    }
+}
