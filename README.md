@@ -26,30 +26,20 @@ A GTK4/Libadwaita GUI for [asusctl](https://gitlab.com/asus-linux/asusctl) - man
 - asusctl installed and configured
 - Rust 1.83+
 
-## Building
-
-```bash
-cargo build --release
-```
-
 ## Running
 
 ```bash
-cargo run
+cargo run --release
 ```
 
 ## Acknowledgements
 
 This project was developed with assistance from Claude AI.
 
+## Development
+
+See [DEVELOPMENT.md](DEVELOPMENT.md) for setup, testing, and coverage instructions.
+
 ## License
 
 GPL-3.0
-
-## Develop
-
-```
-cp resources/com.github.bl4ckspell7.asusctl-gui.gschema.xml ~/.local/share/glib-2.0/schemas/
-
-glib-compile-schemas ~/.local/share/glib-2.0/schemas/
-```
