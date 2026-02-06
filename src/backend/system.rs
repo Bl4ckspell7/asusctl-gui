@@ -4,8 +4,8 @@ use std::str::FromStr;
 use std::sync::OnceLock;
 
 use super::dbus::{
-    get_aura_path, get_slash_path, read_dbus_property_at, run_asusctl, PLATFORM_INTERFACE,
-    PLATFORM_PATH,
+    PLATFORM_INTERFACE, PLATFORM_PATH, get_aura_path, get_slash_path, read_dbus_property_at,
+    run_asusctl,
 };
 use super::error::{AsusctlError, Result};
 use super::types::{AuraMode, KeyboardBrightness, SupportedFeatures, SystemInfo};
@@ -83,8 +83,12 @@ fn probe_dbus_features(features: &mut SupportedFeatures) {
         features.has_slash = true;
     }
 
-    if read_dbus_property_at(PLATFORM_PATH, PLATFORM_INTERFACE, "ChargeControlEndThreshold")
-        .is_ok()
+    if read_dbus_property_at(
+        PLATFORM_PATH,
+        PLATFORM_INTERFACE,
+        "ChargeControlEndThreshold",
+    )
+    .is_ok()
     {
         features.has_platform = true;
         features.has_charge_control = true;
@@ -176,7 +180,9 @@ fn parse_supported_features(output: &str) -> Result<SupportedFeatures> {
     // Parse aura zones
     let zones_section = extract_section(output, "Supported Aura Zones:");
     for line in zones_section.lines() {
-        let trimmed = line.trim().trim_matches(|c| c == ',' || c == '[' || c == ']');
+        let trimmed = line
+            .trim()
+            .trim_matches(|c| c == ',' || c == '[' || c == ']');
         if !trimmed.is_empty() {
             features.aura_zones.push(trimmed.to_string());
         }
@@ -376,12 +382,16 @@ Supported Aura Zones:
 
         // Keyboard brightness
         assert_eq!(features.keyboard_brightness_levels.len(), 4);
-        assert!(features
-            .keyboard_brightness_levels
-            .contains(&KeyboardBrightness::Off));
-        assert!(features
-            .keyboard_brightness_levels
-            .contains(&KeyboardBrightness::High));
+        assert!(
+            features
+                .keyboard_brightness_levels
+                .contains(&KeyboardBrightness::Off)
+        );
+        assert!(
+            features
+                .keyboard_brightness_levels
+                .contains(&KeyboardBrightness::High)
+        );
 
         // Aura modes
         assert!(features.aura_modes.len() >= 6);

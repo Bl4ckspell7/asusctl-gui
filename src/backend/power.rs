@@ -4,7 +4,7 @@ use std::process::Command;
 use std::str::FromStr;
 
 use super::dbus::{
-    parse_dbus_byte, read_dbus_property_at, run_asusctl, PLATFORM_INTERFACE, PLATFORM_PATH,
+    PLATFORM_INTERFACE, PLATFORM_PATH, parse_dbus_byte, read_dbus_property_at, run_asusctl,
 };
 use super::error::{AsusctlError, Result};
 use super::types::{PowerProfile, ProfileState};

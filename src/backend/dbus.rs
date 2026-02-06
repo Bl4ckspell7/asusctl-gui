@@ -55,7 +55,14 @@ pub fn run_asusctl(args: &[&str]) -> Result<String> {
 /// Read a D-Bus property using busctl.
 pub fn read_dbus_property_at(path: &str, interface: &str, property: &str) -> Result<String> {
     let output = Command::new("busctl")
-        .args(["--system", "get-property", DBUS_DEST, path, interface, property])
+        .args([
+            "--system",
+            "get-property",
+            DBUS_DEST,
+            path,
+            interface,
+            property,
+        ])
         .output()
         .map_err(|e| AsusctlError::CommandFailed(format!("busctl failed: {e}")))?;
 
@@ -139,7 +146,14 @@ fn discover_aura_children() -> Result<Vec<String>> {
 /// Check if a D-Bus path implements a specific interface by trying to read a known property.
 fn path_has_interface(path: &str, interface: &str, test_property: &str) -> bool {
     let output = Command::new("busctl")
-        .args(["--system", "get-property", DBUS_DEST, path, interface, test_property])
+        .args([
+            "--system",
+            "get-property",
+            DBUS_DEST,
+            path,
+            interface,
+            test_property,
+        ])
         .output()
         .ok();
 

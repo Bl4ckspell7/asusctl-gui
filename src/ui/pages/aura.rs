@@ -192,9 +192,7 @@ impl AuraPage {
             .margin_start(8)
             .margin_end(8)
             .build();
-        let info_popover = gtk4::Popover::builder()
-            .child(&info_popover_label)
-            .build();
+        let info_popover = gtk4::Popover::builder().child(&info_popover_label).build();
         let info_btn = gtk4::MenuButton::builder()
             .icon_name("info-outline-symbolic")
             .popover(&info_popover)
@@ -331,9 +329,7 @@ impl AuraPage {
         mode_group.add(&direction_row);
 
         // Zone row (only shown if device reports supported zones)
-        let zone_row = adw::ActionRow::builder()
-            .title("Zone")
-            .build();
+        let zone_row = adw::ActionRow::builder().title("Zone").build();
 
         let mut zone_labels: Vec<&str> = vec!["Default"];
         let zone_strings: Vec<String> = supported_zones;
@@ -636,8 +632,10 @@ impl AuraPage {
                 // Update mode buttons
                 {
                     let mode_buttons = imp.mode_buttons.borrow();
-                    let _guards: Vec<_> =
-                        mode_buttons.iter().map(|(btn, _)| btn.freeze_notify()).collect();
+                    let _guards: Vec<_> = mode_buttons
+                        .iter()
+                        .map(|(btn, _)| btn.freeze_notify())
+                        .collect();
                     for (btn, mode) in mode_buttons.iter() {
                         if *mode == mode_data.mode {
                             btn.set_active(true);
@@ -650,8 +648,10 @@ impl AuraPage {
                 // Update speed buttons
                 {
                     let speed_buttons = imp.speed_buttons.borrow();
-                    let _guards: Vec<_> =
-                        speed_buttons.iter().map(|(btn, _)| btn.freeze_notify()).collect();
+                    let _guards: Vec<_> = speed_buttons
+                        .iter()
+                        .map(|(btn, _)| btn.freeze_notify())
+                        .collect();
                     for (btn, speed) in speed_buttons.iter() {
                         if *speed == mode_data.speed {
                             btn.set_active(true);

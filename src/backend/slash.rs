@@ -4,8 +4,8 @@ use std::fs;
 use std::str::FromStr;
 
 use super::dbus::{
-    get_slash_path, parse_dbus_bool, parse_dbus_byte, read_dbus_property_at, run_asusctl,
-    SLASH_CONFIG_PATH, SLASH_INTERFACE,
+    SLASH_CONFIG_PATH, SLASH_INTERFACE, get_slash_path, parse_dbus_bool, parse_dbus_byte,
+    read_dbus_property_at, run_asusctl,
 };
 use super::error::{AsusctlError, Result};
 use super::types::{SlashMode, SlashState};
