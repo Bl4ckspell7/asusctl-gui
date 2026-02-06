@@ -1,0 +1,13 @@
+{
+    "permissions": {
+        "allow": [
+            "Bash(cargo build:*)",
+            "Bash(cargo test:*)",
+            "Bash(cd:*)",
+            "Bash(find:*)",
+            "Bash(timeout:*)",
+            "Bash(tree:*)",
+            "Bash(wc:*)"
+        ]
+    }
+}
