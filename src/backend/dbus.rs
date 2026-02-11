@@ -17,6 +17,27 @@ pub const ARMOURY_INTERFACE: &str = "xyz.ljones.AsusArmoury";
 // Cached D-Bus paths (discovered at runtime)
 static AURA_PATH: OnceLock<Option<String>> = OnceLock::new();
 static SLASH_PATH: OnceLock<Option<String>> = OnceLock::new();
+static IN_FLATPAK: OnceLock<bool> = OnceLock::new();
+
+// ============================================================================
+// Flatpak Support
+// ============================================================================
+
+/// Check if we're running inside a Flatpak sandbox.
+pub fn is_flatpak() -> bool {
+    *IN_FLATPAK.get_or_init(|| std::path::Path::new("/.flatpak-info").exists())
+}
+
+/// Create a Command that runs on the host, using `flatpak-spawn --host` if in Flatpak.
+pub fn host_command(program: &str) -> Command {
+    if is_flatpak() {
+        let mut cmd = Command::new("flatpak-spawn");
+        cmd.args(["--host", program]);
+        cmd
+    } else {
+        Command::new(program)
+    }
+}
 
 // ============================================================================
 // Command Execution
@@ -24,7 +45,7 @@ static SLASH_PATH: OnceLock<Option<String>> = OnceLock::new();
 
 /// Execute an asusctl command and return its stdout.
 pub fn run_asusctl(args: &[&str]) -> Result<String> {
-    let output = Command::new("asusctl").args(args).output().map_err(|e| {
+    let output = host_command("asusctl").args(args).output().map_err(|e| {
         if e.kind() == std::io::ErrorKind::NotFound {
             AsusctlError::NotInstalled
         } else {
@@ -52,7 +73,7 @@ pub fn run_asusctl(args: &[&str]) -> Result<String> {
 
 /// Read a D-Bus property using busctl.
 pub fn read_dbus_property_at(path: &str, interface: &str, property: &str) -> Result<String> {
-    let output = Command::new("busctl")
+    let output = host_command("busctl")
         .args([
             "--system",
             "get-property",
@@ -77,7 +98,7 @@ pub fn read_dbus_property_at(path: &str, interface: &str, property: &str) -> Res
 
 /// Call a D-Bus method (no arguments) and return its stdout.
 pub fn call_dbus_method(path: &str, interface: &str, method: &str) -> Result<String> {
-    let output = Command::new("busctl")
+    let output = host_command("busctl")
         .args([
             "--system",
             "call",
@@ -144,7 +165,7 @@ pub fn parse_dbus_uint(output: &str) -> Result<u32> {
 
 /// Discover child paths under /xyz/ljones/aura using busctl.
 fn discover_aura_children() -> Result<Vec<String>> {
-    let output = Command::new("busctl")
+    let output = host_command("busctl")
         .args(["--system", "tree", "--list", DBUS_DEST])
         .output()
         .map_err(|e| AsusctlError::CommandFailed(format!("busctl tree failed: {e}")))?;
@@ -165,7 +186,7 @@ fn discover_aura_children() -> Result<Vec<String>> {
 
 /// Check if a D-Bus path implements a specific interface by trying to read a known property.
 fn path_has_interface(path: &str, interface: &str, test_property: &str) -> bool {
-    let output = Command::new("busctl")
+    let output = host_command("busctl")
         .args([
             "--system",
             "get-property",
@@ -225,7 +246,7 @@ pub fn get_slash_path() -> Option<&'static String> {
 /// implement the `xyz.ljones.AsusArmoury` interface, which indicates
 /// the asus-armoury kernel driver is loaded.
 pub fn has_armoury_interface() -> bool {
-    let output = Command::new("busctl")
+    let output = host_command("busctl")
         .args(["--system", "tree", "--list", DBUS_DEST])
         .output()
         .ok();

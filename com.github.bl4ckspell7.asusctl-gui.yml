@@ -19,9 +19,6 @@ finish-args:
   # Access to asusctl binary on the host
   - --talk-name=org.freedesktop.Flatpak
 
-  # Read asusd config files (e.g. /etc/asusd/slash.ron)
-  - --filesystem=host-etc:ro
-
 modules:
   - name: asusctl-gui
     buildsystem: simple

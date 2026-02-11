@@ -1,10 +1,10 @@
 //! Power profile and charge control management.
 
-use std::process::Command;
 use std::str::FromStr;
 
 use super::dbus::{
-    PLATFORM_INTERFACE, PLATFORM_PATH, parse_dbus_byte, read_dbus_property_at, run_asusctl,
+    PLATFORM_INTERFACE, PLATFORM_PATH, host_command, parse_dbus_byte, read_dbus_property_at,
+    run_asusctl,
 };
 use super::error::{AsusctlError, Result};
 use super::types::{PowerProfile, ProfileState};
@@ -83,7 +83,7 @@ fn set_profile_ppdctl(profile: PowerProfile) -> Result<()> {
         PowerProfile::Performance => "performance",
     };
 
-    let output = Command::new("powerprofilesctl")
+    let output = host_command("powerprofilesctl")
         .args(["set", profile_name])
         .output()
         .map_err(|e| {
