@@ -1,5 +1,6 @@
 //! System information and feature detection.
 
+use std::fs;
 use std::str::FromStr;
 use std::sync::OnceLock;
 
@@ -20,6 +21,24 @@ static DETECTED_FEATURES: OnceLock<SupportedFeatures> = OnceLock::new();
 pub fn get_system_info() -> Result<SystemInfo> {
     let output = run_asusctl(&["info"])?;
     parse_system_info(&output)
+}
+
+/// Get the Linux kernel version from /proc/sys/kernel/osrelease.
+pub fn get_kernel_version() -> String {
+    fs::read_to_string("/proc/sys/kernel/osrelease")
+        .map(|s| s.trim().to_string())
+        .unwrap_or_default()
+}
+
+/// Get the Linux distribution name from /etc/os-release (PRETTY_NAME field).
+pub fn get_distro() -> String {
+    let content = fs::read_to_string("/etc/os-release").unwrap_or_default();
+    for line in content.lines() {
+        if let Some(value) = line.strip_prefix("PRETTY_NAME=") {
+            return value.trim_matches('"').to_string();
+        }
+    }
+    String::new()
 }
 
 /// Detect available features once and cache the result for the process lifetime.

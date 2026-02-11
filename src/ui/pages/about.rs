@@ -87,9 +87,21 @@ impl AboutPage {
             .subtitle("Loading...")
             .build();
 
+        let distro_row = adw::ActionRow::builder()
+            .title("Distribution")
+            .subtitle(&backend::get_distro())
+            .build();
+
+        let kernel_row = adw::ActionRow::builder()
+            .title("Kernel Version")
+            .subtitle(&backend::get_kernel_version())
+            .build();
+
         laptop_group.add(&model_row);
         laptop_group.add(&driver_row);
         laptop_group.add(&asusctl_row);
+        laptop_group.add(&distro_row);
+        laptop_group.add(&kernel_row);
 
         // Store references
         imp.model_row.replace(Some(model_row));
@@ -98,14 +110,21 @@ impl AboutPage {
 
         self.append(&laptop_group);
 
-        // Supported features group (loaded once from cached detection)
+        // Service status group
+        let status_group = adw::PreferencesGroup::builder()
+            .title("Service Status")
+            .build();
+
+        // Supported features group
         let features_group = adw::PreferencesGroup::builder()
             .title("Supported Features")
             .build();
 
         let features = backend::detect_features();
+        Self::populate_status(&status_group, features);
         Self::populate_features(&features_group, features);
 
+        self.append(&status_group);
         self.append(&features_group);
     }
 
@@ -141,16 +160,18 @@ impl AboutPage {
         }
     }
 
-    fn populate_features(group: &adw::PreferencesGroup, features: &backend::SupportedFeatures) {
-        // Service status
+    fn populate_status(group: &adw::PreferencesGroup, features: &backend::SupportedFeatures) {
         let service_status = [
-            ("asusctl Installed", features.asusctl_installed),
-            ("asusd Service Running", features.asusd_running),
-            ("asus-armoury Driver", features.has_armoury),
+            ("Installed", "asusctl", features.asusctl_installed),
+            ("Service Running", "asusd", features.asusd_running),
+            ("Driver Loaded", "asus-armoury", features.has_armoury),
         ];
 
-        for (name, available) in service_status {
-            let row = adw::ActionRow::builder().title(name).build();
+        for (title, subtitle, available) in service_status {
+            let row = adw::ActionRow::builder()
+                .title(title)
+                .subtitle(subtitle)
+                .build();
 
             let icon_name = if available {
                 "object-select-symbolic"
@@ -168,7 +189,9 @@ impl AboutPage {
 
             group.add(&row);
         }
+    }
 
+    fn populate_features(group: &adw::PreferencesGroup, features: &backend::SupportedFeatures) {
         // Core features
         let core_features = [
             ("Aura (Keyboard Lighting)", features.has_aura),
