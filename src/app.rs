@@ -5,6 +5,8 @@ use libadwaita as adw;
 
 use crate::ui::AsusctlGuiWindow;
 
+pub const APP_NAME: &str = "ASUS Control";
+
 mod imp {
     use super::*;
     use adw::subclass::prelude::*;

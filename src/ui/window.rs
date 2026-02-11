@@ -3,6 +3,8 @@ use gtk4::gio;
 use gtk4::glib;
 use gtk4::prelude::*;
 use gtk4::subclass::prelude::*;
+
+use crate::app::APP_NAME;
 use libadwaita as adw;
 use std::time::Duration;
 
@@ -62,7 +64,7 @@ impl AsusctlGuiWindow {
     pub fn new(app: &adw::Application) -> Self {
         glib::Object::builder()
             .property("application", app)
-            .property("title", "asusctl-gui")
+            .property("title", APP_NAME)
             .property("default-width", 840)
             .property("default-height", 540)
             .build()
@@ -254,7 +256,7 @@ impl AsusctlGuiWindow {
 
         // Create sidebar toolbar view with header
         let sidebar_header = adw::HeaderBar::builder()
-            .title_widget(&gtk4::Label::new(Some("asusctl-gui")))
+            .title_widget(&gtk4::Label::new(Some(APP_NAME)))
             .build();
         sidebar_header.pack_end(&menu_button);
 
@@ -362,8 +364,8 @@ impl AsusctlGuiWindow {
 
     fn show_about_dialog(&self) {
         let about = adw::AboutDialog::builder()
-            .application_name("asusctl-gui")
-            .application_icon("preferences-other-symbolic")
+            .application_name(APP_NAME)
+            .application_icon("com.github.bl4ckspell7.asusctl-gui")
             .developer_name("Bl4ckspell")
             .version("0.1.0")
             .website("https://github.com/Bl4ckspell7/asusctl-gui")
