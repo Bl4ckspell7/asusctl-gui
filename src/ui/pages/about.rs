@@ -146,6 +146,7 @@ impl AboutPage {
         let service_status = [
             ("asusctl Installed", features.asusctl_installed),
             ("asusd Service Running", features.asusd_running),
+            ("asus-armoury Driver", features.has_armoury),
         ];
 
         for (name, available) in service_status {
