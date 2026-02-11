@@ -14,9 +14,6 @@ pub const AURA_INTERFACE: &str = "xyz.ljones.Aura";
 pub const SLASH_INTERFACE: &str = "xyz.ljones.Slash";
 pub const ARMOURY_INTERFACE: &str = "xyz.ljones.AsusArmoury";
 
-// Config file paths (fallback)
-pub const SLASH_CONFIG_PATH: &str = "/etc/asusd/slash.ron";
-
 // Cached D-Bus paths (discovered at runtime)
 static AURA_PATH: OnceLock<Option<String>> = OnceLock::new();
 static SLASH_PATH: OnceLock<Option<String>> = OnceLock::new();
@@ -72,6 +69,28 @@ pub fn read_dbus_property_at(path: &str, interface: &str, property: &str) -> Res
         if stderr.contains("No such") || stderr.contains("not found") {
             return Err(AsusctlError::ServiceNotRunning);
         }
+        return Err(AsusctlError::CommandFailed(stderr.to_string()));
+    }
+
+    Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+}
+
+/// Call a D-Bus method (no arguments) and return its stdout.
+pub fn call_dbus_method(path: &str, interface: &str, method: &str) -> Result<String> {
+    let output = Command::new("busctl")
+        .args([
+            "--system",
+            "call",
+            DBUS_DEST,
+            path,
+            interface,
+            method,
+        ])
+        .output()
+        .map_err(|e| AsusctlError::CommandFailed(format!("busctl call failed: {e}")))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
         return Err(AsusctlError::CommandFailed(stderr.to_string()));
     }
 

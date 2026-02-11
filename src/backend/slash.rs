@@ -1,14 +1,11 @@
 //! Slash LED bar control.
 
-use std::fs;
-use std::str::FromStr;
-
 use super::dbus::{
-    SLASH_CONFIG_PATH, SLASH_INTERFACE, get_slash_path, parse_dbus_bool, parse_dbus_byte,
+    SLASH_INTERFACE, call_dbus_method, get_slash_path, parse_dbus_bool, parse_dbus_byte,
     read_dbus_property_at, run_asusctl,
 };
 use super::error::{AsusctlError, Result};
-use super::types::{SlashMode, SlashState};
+use super::types::SlashMode;
 
 // ============================================================================
 // Public API - Enable/Disable
@@ -54,27 +51,57 @@ pub fn set_slash_interval(interval: u8) -> Result<()> {
 }
 
 // ============================================================================
-// Public API - State Getters (D-Bus preferred, config fallback)
+// Public API - State Getters (D-Bus)
 // ============================================================================
 
-/// Get slash enabled state (D-Bus preferred, config fallback).
+/// Get slash enabled state via D-Bus.
 pub fn get_slash_enabled() -> Result<bool> {
-    get_slash_enabled_dbus().or_else(|_| Ok(parse_slash_config()?.enabled))
+    let path = get_slash_path()
+        .ok_or_else(|| AsusctlError::CommandFailed("Slash D-Bus path not found".to_string()))?;
+    let output = read_dbus_property_at(path, SLASH_INTERFACE, "Enabled")?;
+    parse_dbus_bool(&output)
 }
 
-/// Get slash brightness (D-Bus preferred, config fallback).
+/// Get slash brightness via D-Bus.
 pub fn get_slash_brightness() -> Result<u8> {
-    get_slash_brightness_dbus().or_else(|_| Ok(parse_slash_config()?.brightness))
+    let path = get_slash_path()
+        .ok_or_else(|| AsusctlError::CommandFailed("Slash D-Bus path not found".to_string()))?;
+    let output = read_dbus_property_at(path, SLASH_INTERFACE, "Brightness")?;
+    parse_dbus_byte(&output)
 }
 
-/// Get slash interval (D-Bus preferred, config fallback).
+/// Get slash interval via D-Bus.
 pub fn get_slash_interval() -> Result<u8> {
-    get_slash_interval_dbus().or_else(|_| Ok(parse_slash_config()?.interval))
+    let path = get_slash_path()
+        .ok_or_else(|| AsusctlError::CommandFailed("Slash D-Bus path not found".to_string()))?;
+    let output = read_dbus_property_at(path, SLASH_INTERFACE, "Interval")?;
+    parse_dbus_byte(&output)
 }
 
-/// Get slash mode (from config file).
+/// Get slash mode via D-Bus DeviceState method.
+///
+/// The `Mode` property doesn't reflect changes made via asusctl,
+/// so we use the `DeviceState` method which returns `(byyu)`:
+/// (enabled, brightness, interval, mode).
 pub fn get_slash_mode() -> Result<SlashMode> {
-    Ok(parse_slash_config()?.mode)
+    let path = get_slash_path()
+        .ok_or_else(|| AsusctlError::CommandFailed("Slash D-Bus path not found".to_string()))?;
+    let output = call_dbus_method(path, SLASH_INTERFACE, "DeviceState")?;
+
+    // Output format: "byyu true 255 0 6"
+    let parts: Vec<&str> = output.split_whitespace().collect();
+    if parts.len() < 5 {
+        return Err(AsusctlError::ParseError(format!(
+            "Invalid DeviceState format: {output}"
+        )));
+    }
+
+    let mode_val: u32 = parts[4]
+        .parse()
+        .map_err(|_| AsusctlError::ParseError(format!("Invalid mode value: {}", parts[4])))?;
+
+    SlashMode::from_dbus_value(mode_val as u8)
+        .ok_or_else(|| AsusctlError::ParseError(format!("Unknown slash mode value: {mode_val}")))
 }
 
 // ============================================================================
@@ -171,86 +198,6 @@ pub fn set_slash_show_battery_warning(value: bool) -> Result<()> {
 }
 
 // ============================================================================
-// Private D-Bus Getters
-// ============================================================================
-
-fn get_slash_enabled_dbus() -> Result<bool> {
-    let path = get_slash_path()
-        .ok_or_else(|| AsusctlError::CommandFailed("Slash D-Bus path not found".to_string()))?;
-    let output = read_dbus_property_at(path, SLASH_INTERFACE, "Enabled")?;
-    parse_dbus_bool(&output)
-}
-
-fn get_slash_brightness_dbus() -> Result<u8> {
-    let path = get_slash_path()
-        .ok_or_else(|| AsusctlError::CommandFailed("Slash D-Bus path not found".to_string()))?;
-    let output = read_dbus_property_at(path, SLASH_INTERFACE, "Brightness")?;
-    parse_dbus_byte(&output)
-}
-
-fn get_slash_interval_dbus() -> Result<u8> {
-    let path = get_slash_path()
-        .ok_or_else(|| AsusctlError::CommandFailed("Slash D-Bus path not found".to_string()))?;
-    let output = read_dbus_property_at(path, SLASH_INTERFACE, "Interval")?;
-    parse_dbus_byte(&output)
-}
-
-// ============================================================================
-// Config File Parsing
-// ============================================================================
-
-/// Parse slash config from /etc/asusd/slash.ron.
-fn parse_slash_config() -> Result<SlashState> {
-    let content = fs::read_to_string(SLASH_CONFIG_PATH)
-        .map_err(|e| AsusctlError::ParseError(format!("Failed to read slash config: {e}")))?;
-
-    let mut state = SlashState::default();
-
-    for line in content.lines() {
-        let line = line.trim();
-
-        if line.starts_with("enabled:") {
-            state.enabled = line.contains("true");
-        } else if line.starts_with("brightness:") {
-            if let Some(val) = extract_number(line) {
-                state.brightness = val as u8;
-            }
-        } else if line.starts_with("display_interval:") {
-            if let Some(val) = extract_number(line) {
-                state.interval = val as u8;
-            }
-        } else if line.starts_with("display_mode:") {
-            if let Some(mode_str) = extract_string_value(line) {
-                state.mode = SlashMode::from_str(&mode_str).unwrap_or_default();
-            }
-        }
-    }
-
-    Ok(state)
-}
-
-/// Extract a number from a line like "brightness: 255,".
-fn extract_number(line: &str) -> Option<u32> {
-    line.split(':')
-        .nth(1)?
-        .trim()
-        .trim_end_matches(',')
-        .parse()
-        .ok()
-}
-
-/// Extract a string value from a line like "display_mode: BitStream,".
-fn extract_string_value(line: &str) -> Option<String> {
-    Some(
-        line.split(':')
-            .nth(1)?
-            .trim()
-            .trim_end_matches(',')
-            .to_string(),
-    )
-}
-
-// ============================================================================
 // Tests
 // ============================================================================
 
@@ -258,220 +205,12 @@ fn extract_string_value(line: &str) -> Option<String> {
 mod tests {
     use super::*;
 
-    // ------------------------------------------------------------------------
-    // extract_number Tests
-    // ------------------------------------------------------------------------
-
     #[test]
-    fn test_extract_number_valid() {
-        assert_eq!(extract_number("brightness: 255,"), Some(255));
-        assert_eq!(extract_number("brightness: 128,"), Some(128));
-        assert_eq!(extract_number("display_interval: 5,"), Some(5));
-        assert_eq!(extract_number("value: 0,"), Some(0));
-    }
-
-    #[test]
-    fn test_extract_number_without_trailing_comma() {
-        assert_eq!(extract_number("brightness: 255"), Some(255));
-        assert_eq!(extract_number("interval: 3"), Some(3));
-    }
-
-    #[test]
-    fn test_extract_number_with_whitespace() {
-        // Leading whitespace after colon is handled
-        assert_eq!(extract_number("brightness:   255,"), Some(255));
-        // Note: "brightness: 255  ," won't parse because whitespace before comma
-        // is not trimmed by the simple parsing logic. This matches expected config format.
-        assert_eq!(extract_number("  brightness: 100,"), Some(100));
-    }
-
-    #[test]
-    fn test_extract_number_invalid() {
-        assert_eq!(extract_number("brightness: abc,"), None);
-        assert_eq!(extract_number("no_colon_here"), None);
-        assert_eq!(extract_number("brightness:"), None);
-        assert_eq!(extract_number(""), None);
-    }
-
-    #[test]
-    fn test_extract_number_large_values() {
-        assert_eq!(extract_number("value: 4294967295,"), Some(4294967295));
-    }
-
-    // ------------------------------------------------------------------------
-    // extract_string_value Tests
-    // ------------------------------------------------------------------------
-
-    #[test]
-    fn test_extract_string_value_valid() {
-        assert_eq!(
-            extract_string_value("display_mode: BitStream,"),
-            Some("BitStream".to_string())
-        );
-        assert_eq!(
-            extract_string_value("display_mode: Flow,"),
-            Some("Flow".to_string())
-        );
-        assert_eq!(
-            extract_string_value("mode: Static,"),
-            Some("Static".to_string())
-        );
-    }
-
-    #[test]
-    fn test_extract_string_value_without_trailing_comma() {
-        assert_eq!(
-            extract_string_value("display_mode: Spectrum"),
-            Some("Spectrum".to_string())
-        );
-    }
-
-    #[test]
-    fn test_extract_string_value_with_whitespace() {
-        assert_eq!(
-            extract_string_value("display_mode:   BitStream,"),
-            Some("BitStream".to_string())
-        );
-        assert_eq!(
-            extract_string_value("  display_mode: Flow,  "),
-            Some("Flow".to_string())
-        );
-    }
-
-    #[test]
-    fn test_extract_string_value_empty_value() {
-        assert_eq!(extract_string_value("mode:,"), Some("".to_string()));
-        assert_eq!(extract_string_value("mode: ,"), Some("".to_string()));
-    }
-
-    #[test]
-    fn test_extract_string_value_no_colon() {
-        assert_eq!(extract_string_value("no_colon_here"), None);
-        assert_eq!(extract_string_value(""), None);
-    }
-
-    // ------------------------------------------------------------------------
-    // Parsing enabled line Tests
-    // ------------------------------------------------------------------------
-
-    #[test]
-    fn test_parse_enabled_line() {
-        // Test parsing enabled: true/false from config lines
-        assert!("enabled: true,".contains("true"));
-        assert!(!"enabled: false,".contains("true"));
-    }
-
-    // ------------------------------------------------------------------------
-    // SlashState Tests
-    // ------------------------------------------------------------------------
-
-    #[test]
-    fn test_slash_state_default_values() {
-        let state = SlashState::default();
-        assert!(!state.enabled);
-        assert_eq!(state.brightness, 0);
-        assert_eq!(state.interval, 0);
-        assert_eq!(state.mode, SlashMode::Flow);
-    }
-
-    #[test]
-    fn test_slash_state_custom_values() {
-        let state = SlashState {
-            enabled: true,
-            brightness: 200,
-            interval: 3,
-            mode: SlashMode::BitStream,
-        };
-        assert!(state.enabled);
-        assert_eq!(state.brightness, 200);
-        assert_eq!(state.interval, 3);
-        assert_eq!(state.mode, SlashMode::BitStream);
-    }
-
-    // ------------------------------------------------------------------------
-    // Integration-style parsing Tests (simulated config content)
-    // ------------------------------------------------------------------------
-
-    #[test]
-    fn test_parse_config_lines() {
-        // Simulate parsing a config file line by line
-        let config_content = r#"(
-    enabled: true,
-    brightness: 180,
-    display_interval: 2,
-    display_mode: Spectrum,
-)"#;
-
-        let mut state = SlashState::default();
-
-        for line in config_content.lines() {
-            let line = line.trim();
-
-            if line.starts_with("enabled:") {
-                state.enabled = line.contains("true");
-            } else if line.starts_with("brightness:") {
-                if let Some(val) = extract_number(line) {
-                    state.brightness = val as u8;
-                }
-            } else if line.starts_with("display_interval:") {
-                if let Some(val) = extract_number(line) {
-                    state.interval = val as u8;
-                }
-            } else if line.starts_with("display_mode:") {
-                if let Some(mode_str) = extract_string_value(line) {
-                    state.mode = SlashMode::from_str(&mode_str).unwrap_or_default();
-                }
-            }
-        }
-
-        assert!(state.enabled);
-        assert_eq!(state.brightness, 180);
-        assert_eq!(state.interval, 2);
-        assert_eq!(state.mode, SlashMode::Spectrum);
-    }
-
-    #[test]
-    fn test_parse_config_lines_disabled() {
-        let config_content = r#"(
-    enabled: false,
-    brightness: 100,
-    display_interval: 5,
-    display_mode: Hazard,
-)"#;
-
-        let mut state = SlashState::default();
-
-        for line in config_content.lines() {
-            let line = line.trim();
-
-            if line.starts_with("enabled:") {
-                state.enabled = line.contains("true");
-            } else if line.starts_with("brightness:") {
-                if let Some(val) = extract_number(line) {
-                    state.brightness = val as u8;
-                }
-            } else if line.starts_with("display_interval:") {
-                if let Some(val) = extract_number(line) {
-                    state.interval = val as u8;
-                }
-            } else if line.starts_with("display_mode:") {
-                if let Some(mode_str) = extract_string_value(line) {
-                    state.mode = SlashMode::from_str(&mode_str).unwrap_or_default();
-                }
-            }
-        }
-
-        assert!(!state.enabled);
-        assert_eq!(state.brightness, 100);
-        assert_eq!(state.interval, 5);
-        assert_eq!(state.mode, SlashMode::Hazard);
-    }
-
-    #[test]
-    fn test_parse_config_with_unknown_mode_falls_back_to_default() {
-        let line = "display_mode: UnknownMode,";
-        let mode_str = extract_string_value(line).unwrap();
-        let mode = SlashMode::from_str(&mode_str).unwrap_or_default();
-        assert_eq!(mode, SlashMode::Flow); // Default mode
+    fn test_slash_mode_from_dbus_value() {
+        assert_eq!(SlashMode::from_dbus_value(0), Some(SlashMode::Static));
+        assert_eq!(SlashMode::from_dbus_value(6), Some(SlashMode::Flow));
+        assert_eq!(SlashMode::from_dbus_value(15), Some(SlashMode::Buzzer));
+        assert_eq!(SlashMode::from_dbus_value(16), None);
+        assert_eq!(SlashMode::from_dbus_value(255), None);
     }
 }
