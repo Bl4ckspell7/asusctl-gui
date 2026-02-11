@@ -7,7 +7,9 @@
 - Rust 1.83+
 - asusctl installed and configured
 
-## Setup
+## Cargo
+
+### Setup
 
 Copy the GSettings schema to your local schemas directory and compile:
 
@@ -17,61 +19,26 @@ cp resources/com.github.bl4ckspell7.asusctl-gui.gschema.xml ~/.local/share/glib-
 glib-compile-schemas ~/.local/share/glib-2.0/schemas/
 ```
 
-## Run
+### Run
 
 ```bash
 cargo run
 ```
 
-## Build
+### Build
 
 ```bash
 cargo build
-```
-
-## Test
-
-Run tests:
-
-```bash
-cargo test
-```
-
-### Coverage
-
-Install cargo-llvm-cov:
-
-```bash
-cargo install cargo-llvm-cov
-```
-
-Generate HTML coverage report:
-
-```bash
-cargo llvm-cov --html
-```
-
-The report will be generated in `target/llvm-cov/html/index.html`.
-
-Generate text summary:
-
-```bash
-cargo llvm-cov
 ```
 
 ## Flatpak
 
 ### Prerequisites
 
-Install Flatpak, flatpak-builder, and the GNOME SDK:
-
-# Arch Linux
+Install Flatpak, flatpak-builder, and the GNOME SDK (Arch Linux):
 
 ```bash
 sudo pacman -S flatpak flatpak-builder
-```
-
-```bash
 flatpak install flathub org.gnome.Platform//49 org.gnome.Sdk//49
 flatpak install flathub org.freedesktop.Sdk.Extension.rust-stable//24.08
 ```
@@ -109,3 +76,31 @@ The app runs inside a Flatpak sandbox but needs access to host-side tools (`asus
 - **`flatpak-spawn --host`** — all host commands are automatically wrapped when the app detects it is running inside Flatpak (via `/.flatpak-info`). See `host_command()` in `src/backend/dbus.rs`.
 - **`--talk-name=org.freedesktop.Flatpak`** — grants permission for `flatpak-spawn --host` to work.
 - **`--system-talk-name=xyz.ljones.Asusd`** — grants direct D-Bus access to the asusd system bus.
+
+## Testing
+
+```bash
+cargo test
+```
+
+### Coverage
+
+Install cargo-llvm-cov:
+
+```bash
+cargo install cargo-llvm-cov
+```
+
+Generate HTML coverage report:
+
+```bash
+cargo llvm-cov --html
+```
+
+The report will be generated in `target/llvm-cov/html/index.html`.
+
+Generate text summary:
+
+```bash
+cargo llvm-cov
+```

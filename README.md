@@ -28,17 +28,25 @@ A GTK4/Libadwaita GUI for [asusctl](https://gitlab.com/asus-linux/asusctl) - man
 
 ## Running
 
+### Cargo
+
 ```bash
 cargo run --release
 ```
 
-## Acknowledgements
+### Flatpak
 
-This project was developed with assistance from Claude AI.
+```bash
+flatpak run com.github.bl4ckspell7.asusctl-gui
+```
 
 ## Development
 
 See [DEVELOPMENT.md](DEVELOPMENT.md) for setup, testing, and coverage instructions.
+
+## Acknowledgements
+
+This project was developed with assistance from Claude AI.
 
 ## License
 
