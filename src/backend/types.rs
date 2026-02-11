@@ -445,6 +445,7 @@ pub struct SupportedFeatures {
     pub aura_zones: Vec<String>,
     pub has_charge_control: bool,
     pub has_throttle_policy: bool,
+    pub has_armoury: bool,
 }
 
 // ============================================================================
@@ -962,6 +963,7 @@ mod tests {
         assert!(features.aura_zones.is_empty());
         assert!(!features.has_charge_control);
         assert!(!features.has_throttle_policy);
+        assert!(!features.has_armoury);
     }
 
     // ------------------------------------------------------------------------

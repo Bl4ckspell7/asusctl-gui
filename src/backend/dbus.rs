@@ -12,6 +12,7 @@ pub const PLATFORM_INTERFACE: &str = "xyz.ljones.Platform";
 pub const AURA_BASE_PATH: &str = "/xyz/ljones/aura";
 pub const AURA_INTERFACE: &str = "xyz.ljones.Aura";
 pub const SLASH_INTERFACE: &str = "xyz.ljones.Slash";
+pub const ARMOURY_INTERFACE: &str = "xyz.ljones.AsusArmoury";
 
 // Config file paths (fallback)
 pub const SLASH_CONFIG_PATH: &str = "/etc/asusd/slash.ron";
@@ -197,4 +198,38 @@ pub fn get_slash_path() -> Option<&'static String> {
             None
         })
         .as_ref()
+}
+
+/// Check if the asus-armoury D-Bus interface is available.
+///
+/// Enumerates paths under `xyz.ljones.Asusd` and checks for any that
+/// implement the `xyz.ljones.AsusArmoury` interface, which indicates
+/// the asus-armoury kernel driver is loaded.
+pub fn has_armoury_interface() -> bool {
+    let output = Command::new("busctl")
+        .args(["--system", "tree", "--list", DBUS_DEST])
+        .output()
+        .ok();
+
+    let Some(output) = output else {
+        return false;
+    };
+
+    if !output.status.success() {
+        return false;
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let paths: Vec<&str> = stdout
+        .lines()
+        .filter(|line| line.starts_with("/xyz/ljones/asus_armoury/"))
+        .collect();
+
+    for path in paths {
+        if path_has_interface(path, ARMOURY_INTERFACE, "Name") {
+            return true;
+        }
+    }
+
+    false
 }

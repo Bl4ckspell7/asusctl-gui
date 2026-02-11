@@ -4,8 +4,8 @@ use std::str::FromStr;
 use std::sync::OnceLock;
 
 use super::dbus::{
-    PLATFORM_INTERFACE, PLATFORM_PATH, get_aura_path, get_slash_path, read_dbus_property_at,
-    run_asusctl,
+    PLATFORM_INTERFACE, PLATFORM_PATH, get_aura_path, get_slash_path, has_armoury_interface,
+    read_dbus_property_at, run_asusctl,
 };
 use super::error::{AsusctlError, Result};
 use super::types::{AuraMode, KeyboardBrightness, SupportedFeatures, SystemInfo};
@@ -98,6 +98,8 @@ fn probe_dbus_features(features: &mut SupportedFeatures) {
         features.has_throttle_policy = true;
     }
 
+    features.has_armoury = has_armoury_interface();
+
     if features.has_aura || features.has_slash || features.has_platform {
         features.asusd_running = true;
     }
@@ -137,6 +139,7 @@ fn parse_supported_features(output: &str) -> Result<SupportedFeatures> {
     features.has_platform = output.contains("xyz.ljones.Platform");
     features.has_fan_curves = output.contains("xyz.ljones.FanCurves");
     features.has_slash = output.contains("xyz.ljones.Slash");
+    features.has_armoury = output.contains("xyz.ljones.AsusArmoury");
 
     // Parse platform properties
     features.has_charge_control = output.contains("ChargeControlEndThreshold");
