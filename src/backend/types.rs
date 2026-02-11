@@ -420,12 +420,29 @@ impl FromStr for SlashMode {
     }
 }
 
-#[derive(Debug, Clone, Default)]
-pub struct SlashState {
-    pub enabled: bool,
-    pub brightness: u8,
-    pub interval: u8,
-    pub mode: SlashMode,
+impl SlashMode {
+    /// Convert a D-Bus byte value to a SlashMode.
+    pub fn from_dbus_value(value: u8) -> Option<Self> {
+        match value {
+            0 => Some(Self::Static),
+            1 => Some(Self::Bounce),
+            2 => Some(Self::Slash),
+            3 => Some(Self::Loading),
+            4 => Some(Self::BitStream),
+            5 => Some(Self::Transmission),
+            6 => Some(Self::Flow),
+            7 => Some(Self::Flux),
+            8 => Some(Self::Phantom),
+            9 => Some(Self::Spectrum),
+            10 => Some(Self::Hazard),
+            11 => Some(Self::Interfacing),
+            12 => Some(Self::Ramp),
+            13 => Some(Self::GameOver),
+            14 => Some(Self::Start),
+            15 => Some(Self::Buzzer),
+            _ => None,
+        }
+    }
 }
 
 // ============================================================================
@@ -903,19 +920,6 @@ mod tests {
     #[test]
     fn test_slash_mode_default() {
         assert_eq!(SlashMode::default(), SlashMode::Flow);
-    }
-
-    // ------------------------------------------------------------------------
-    // SlashState Tests
-    // ------------------------------------------------------------------------
-
-    #[test]
-    fn test_slash_state_default() {
-        let state = SlashState::default();
-        assert!(!state.enabled);
-        assert_eq!(state.brightness, 0);
-        assert_eq!(state.interval, 0);
-        assert_eq!(state.mode, SlashMode::Flow);
     }
 
     // ------------------------------------------------------------------------
