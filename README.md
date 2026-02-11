@@ -21,24 +21,24 @@ A GTK4/Libadwaita GUI for [asusctl](https://gitlab.com/asus-linux/asusctl) - man
 
 ## Requirements
 
-- GTK4 4.20+
-- libadwaita 1.8+
 - asusctl installed and configured
-- Rust 1.83+
 
-## Running
+## Installation
+
+Download the latest `asusctl-gui.flatpak` artifact from [GitHub Actions](https://github.com/Bl4ckspell7/asusctl-gui/actions/workflows/flatpak.yml), then install:
 
 ```bash
-cargo run --release
+flatpak install --user ./asusctl-gui.flatpak
+flatpak run com.github.bl4ckspell7.asusctl-gui
 ```
+
+## Development
+
+See [DEVELOPMENT.md](DEVELOPMENT.md) for building from source, testing, and coverage instructions.
 
 ## Acknowledgements
 
 This project was developed with assistance from Claude AI.
-
-## Development
-
-See [DEVELOPMENT.md](DEVELOPMENT.md) for setup, testing, and coverage instructions.
 
 ## License
 

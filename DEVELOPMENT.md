@@ -7,7 +7,9 @@
 - Rust 1.83+
 - asusctl installed and configured
 
-## Setup
+## Cargo
+
+### Setup
 
 Copy the GSettings schema to your local schemas directory and compile:
 
@@ -17,21 +19,65 @@ cp resources/com.github.bl4ckspell7.asusctl-gui.gschema.xml ~/.local/share/glib-
 glib-compile-schemas ~/.local/share/glib-2.0/schemas/
 ```
 
-## Run
+### Run
 
 ```bash
 cargo run
 ```
 
-## Build
+### Build
 
 ```bash
 cargo build
 ```
 
-## Test
+## Flatpak
 
-Run tests:
+### Prerequisites
+
+Install Flatpak, flatpak-builder, and the GNOME SDK (Arch Linux):
+
+```bash
+sudo pacman -S flatpak flatpak-builder
+flatpak install flathub org.gnome.Platform//49 org.gnome.Sdk//49
+flatpak install flathub org.freedesktop.Sdk.Extension.rust-stable//24.08
+```
+
+### Generate cargo sources
+
+The Flatpak build runs offline, so all crate sources must be vendored into `cargo-sources.json`. Use [flatpak-cargo-generator](https://github.com/niclas-nickel/flatpak-cargo-generator):
+
+```bash
+uv tool install flatpak-cargo-generator
+```
+
+```bash
+flatpak-cargo-generator Cargo.lock -o cargo-sources.json
+```
+
+Re-run this whenever `Cargo.lock` changes.
+
+### Build
+
+```bash
+flatpak-builder --user --install --force-clean builddir com.github.bl4ckspell7.asusctl-gui.yml
+```
+
+### Run
+
+```bash
+flatpak run com.github.bl4ckspell7.asusctl-gui
+```
+
+### How it works
+
+The app runs inside a Flatpak sandbox but needs access to host-side tools (`asusctl`, `busctl`, `powerprofilesctl`). This is handled by:
+
+- **`flatpak-spawn --host`** — all host commands are automatically wrapped when the app detects it is running inside Flatpak (via `/.flatpak-info`). See `host_command()` in `src/backend/dbus.rs`.
+- **`--talk-name=org.freedesktop.Flatpak`** — grants permission for `flatpak-spawn --host` to work.
+- **`--system-talk-name=xyz.ljones.Asusd`** — grants direct D-Bus access to the asusd system bus.
+
+## Testing
 
 ```bash
 cargo test

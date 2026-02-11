@@ -1,0 +1,46 @@
+app-id: com.github.bl4ckspell7.asusctl-gui
+runtime: org.gnome.Platform
+runtime-version: '49'
+sdk: org.gnome.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+command: asusctl-gui
+
+finish-args:
+  # Display
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --share=ipc
+  - --device=dri
+
+  # D-Bus access to asusd daemon (system bus)
+  - --system-talk-name=xyz.ljones.Asusd
+
+  # Access to asusctl binary on the host
+  - --talk-name=org.freedesktop.Flatpak
+
+modules:
+  - name: asusctl-gui
+    buildsystem: simple
+    build-options:
+      append-path: /usr/lib/sdk/rust-stable/bin
+      env:
+        CARGO_HOME: /run/build/asusctl-gui/cargo
+        CARGO_NET_OFFLINE: 'true'
+    build-commands:
+      - cargo --offline fetch --manifest-path Cargo.toml --verbose
+      - cargo --offline build --release --verbose
+      - install -Dm0755 target/release/asusctl-gui ${FLATPAK_DEST}/bin/asusctl-gui
+      # Desktop file
+      - install -Dm0644 data/${FLATPAK_ID}.desktop ${FLATPAK_DEST}/share/applications/${FLATPAK_ID}.desktop
+      # MetaInfo
+      - install -Dm0644 data/${FLATPAK_ID}.metainfo.xml ${FLATPAK_DEST}/share/metainfo/${FLATPAK_ID}.metainfo.xml
+      # Icon
+      - install -Dm0644 data/icons/${FLATPAK_ID}.svg ${FLATPAK_DEST}/share/icons/hicolor/scalable/apps/${FLATPAK_ID}.svg
+      # GSettings schema
+      - install -Dm0644 resources/${FLATPAK_ID}.gschema.xml ${FLATPAK_DEST}/share/glib-2.0/schemas/${FLATPAK_ID}.gschema.xml
+      - glib-compile-schemas ${FLATPAK_DEST}/share/glib-2.0/schemas/
+    sources:
+      - type: dir
+        path: .
+      - cargo-sources.json

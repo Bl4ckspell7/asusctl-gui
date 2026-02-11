@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+    <id>com.github.bl4ckspell7.asusctl-gui</id>
+
+    <name>ASUS Control</name>
+    <summary>Control ASUS laptop features</summary>
+
+    <metadata_license>CC0-1.0</metadata_license>
+    <project_license>GPL-3.0-or-later</project_license>
+
+    <description>
+        <p>
+            A GTK4/libadwaita GUI for asusctl that lets you control ASUS laptop
+            features including keyboard lighting (Aura), power profiles, and
+            the LED slash bar.
+        </p>
+    </description>
+
+    <launchable type="desktop-id">com.github.bl4ckspell7.asusctl-gui.desktop</launchable>
+
+    <url type="homepage">https://github.com/Bl4ckspell7/asusctl-gui</url>
+    <url type="bugtracker">https://github.com/Bl4ckspell7/asusctl-gui/issues</url>
+    <url type="vcs-browser">https://github.com/Bl4ckspell7/asusctl-gui</url>
+
+    <developer id="com.github.bl4ckspell7">
+        <name>Bl4ckspell7</name>
+    </developer>
+
+    <branding>
+        <color type="primary" scheme_preference="light">#a8d8ea</color>
+        <color type="primary" scheme_preference="dark">#1a5276</color>
+    </branding>
+
+    <content_rating type="oars-1.1" />
+
+    <releases>
+        <release version="0.1.0" date="2025-01-01">
+            <description>
+                <p>Initial release.</p>
+            </description>
+        </release>
+    </releases>
+
+    <requires>
+        <display_length compare="ge">360</display_length>
+    </requires>
+
+    <supports>
+        <control>pointing</control>
+        <control>keyboard</control>
+    </supports>
+</component>

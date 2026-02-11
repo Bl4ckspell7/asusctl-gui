@@ -1,10 +1,11 @@
 //! Aura lighting and keyboard brightness control.
 
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 use std::str::FromStr;
 
 use super::dbus::{
-    AURA_INTERFACE, get_aura_path, parse_dbus_uint, read_dbus_property_at, run_asusctl,
+    AURA_INTERFACE, get_aura_path, host_command, is_flatpak, parse_dbus_uint,
+    read_dbus_property_at, run_asusctl,
 };
 use super::error::{AsusctlError, Result};
 use super::types::{AuraDirection, AuraMode, AuraModeData, AuraSpeed, KeyboardBrightness};
@@ -164,7 +165,10 @@ pub fn get_aura_mode_help(mode: AuraMode) -> Option<String> {
 
 const RAINBOW_STEPS: u32 = 240;
 
-/// Get the path to the rainbow PID file.
+/// Subpath for the rainbow PID file relative to $HOME.
+const RAINBOW_PID_SUBPATH: &str = ".local/state/asusctl-gui/rainbow.pid";
+
+/// Get the path to the rainbow PID file (local filesystem).
 fn rainbow_pid_path() -> std::path::PathBuf {
     let state_dir = std::env::var("XDG_STATE_HOME").unwrap_or_else(|_| {
         let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
@@ -177,6 +181,19 @@ fn rainbow_pid_path() -> std::path::PathBuf {
 
 /// Check whether the rainbow process is currently running.
 pub fn is_rainbow_running() -> bool {
+    if is_flatpak() {
+        // PID file is on the host; check via flatpak-spawn
+        let script = format!(
+            "P=\"$HOME/{RAINBOW_PID_SUBPATH}\"; \
+             [ -f \"$P\" ] && kill -0 \"$(cat \"$P\")\" 2>/dev/null"
+        );
+        return host_command("bash")
+            .args(["-c", &script])
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false);
+    }
+
     let pid_path = rainbow_pid_path();
     let pid_str = match std::fs::read_to_string(&pid_path) {
         Ok(s) => s.trim().to_string(),
@@ -194,13 +211,25 @@ pub fn is_rainbow_running() -> bool {
 
 /// Stop the rainbow process if it is running.
 pub fn stop_rainbow() -> Result<()> {
+    if is_flatpak() {
+        // PID file is on the host; stop via flatpak-spawn
+        let script = format!(
+            "P=\"$HOME/{RAINBOW_PID_SUBPATH}\"; \
+             [ -f \"$P\" ] && kill \"$(cat \"$P\")\" 2>/dev/null; \
+             rm -f \"$P\""
+        );
+        let _ = host_command("bash").args(["-c", &script]).output();
+        eprintln!("[asusctl-gui] Stopped rainbow effect");
+        return Ok(());
+    }
+
     let pid_path = rainbow_pid_path();
     let pid_str = match std::fs::read_to_string(&pid_path) {
         Ok(s) => s.trim().to_string(),
         Err(_) => return Ok(()),
     };
 
-    let _ = Command::new("kill").arg(&pid_str).output();
+    let _ = host_command("kill").arg(&pid_str).output();
     let _ = std::fs::remove_file(&pid_path);
     eprintln!("[asusctl-gui] Stopped rainbow effect");
     Ok(())
@@ -251,33 +280,61 @@ pub fn start_rainbow(speed: u32) -> Result<()> {
         })
         .collect();
 
-    let pid_path = rainbow_pid_path();
-    let pid_dir = pid_path.parent().unwrap();
-
-    std::fs::create_dir_all(pid_dir)
-        .map_err(|e| AsusctlError::CommandFailed(format!("Failed to create state dir: {e}")))?;
-
     let colors_str = colors.join(" ");
-    let pid_path_str = pid_path.display();
-    let script = format!(
-        "P=\"{pid_path_str}\"\n\
-         trap 'rm -f \"$P\"' EXIT\n\
-         echo $$ > \"$P\"\n\
-         while true; do\n\
-         for c in {colors_str}; do\n\
-         asusctl aura effect static --colour \"$c\" 2>/dev/null\n\
-         sleep {delay:.6}\n\
-         done\n\
-         done"
-    );
 
-    Command::new("setsid")
-        .args(["--fork", "bash", "-c", &script])
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .output()
-        .map_err(|e| AsusctlError::CommandFailed(format!("Failed to start rainbow: {e}")))?;
+    if is_flatpak() {
+        // In Flatpak, the script runs on the host via flatpak-spawn --host.
+        // Use $HOME expansion (resolved by the host shell) for the PID path.
+        let script = format!(
+            "P=\"$HOME/{RAINBOW_PID_SUBPATH}\"\n\
+             mkdir -p \"$(dirname \"$P\")\"\n\
+             trap 'rm -f \"$P\"' EXIT\n\
+             echo $$ > \"$P\"\n\
+             while true; do\n\
+             for c in {colors_str}; do\n\
+             asusctl aura effect static --colour \"$c\" 2>/dev/null\n\
+             sleep {delay:.6}\n\
+             done\n\
+             done"
+        );
+
+        host_command("setsid")
+            .args(["--fork", "bash", "-c", &script])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .output()
+            .map_err(|e| AsusctlError::CommandFailed(format!("Failed to start rainbow: {e}")))?;
+    } else {
+        let pid_path = rainbow_pid_path();
+        let pid_dir = pid_path.parent().unwrap();
+
+        std::fs::create_dir_all(pid_dir)
+            .map_err(|e| {
+                AsusctlError::CommandFailed(format!("Failed to create state dir: {e}"))
+            })?;
+
+        let pid_path_str = pid_path.display();
+        let script = format!(
+            "P=\"{pid_path_str}\"\n\
+             trap 'rm -f \"$P\"' EXIT\n\
+             echo $$ > \"$P\"\n\
+             while true; do\n\
+             for c in {colors_str}; do\n\
+             asusctl aura effect static --colour \"$c\" 2>/dev/null\n\
+             sleep {delay:.6}\n\
+             done\n\
+             done"
+        );
+
+        host_command("setsid")
+            .args(["--fork", "bash", "-c", &script])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .output()
+            .map_err(|e| AsusctlError::CommandFailed(format!("Failed to start rainbow: {e}")))?;
+    }
 
     eprintln!("[asusctl-gui] Started rainbow effect (speed={speed}, delay={delay:.6})");
     Ok(())
