@@ -1,36 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
-    <!-- Background circle -->
-    <circle cx="64" cy="64" r="60" fill="#1a5276" />
+    <!-- Laptop screen -->
+    <rect x="20" y="34" width="88" height="56" rx="4" fill="#fff" stroke="#000" stroke-width="4" />
 
-    <!-- Keyboard base -->
-    <rect x="24" y="46" rx="6" ry="6" width="80" height="44" fill="#a8d8ea" />
-
-    <!-- Key rows -->
-    <!-- Row 1 -->
-    <rect x="30" y="51" width="10" height="8" rx="1.5" fill="#1a5276" />
-    <rect x="43" y="51" width="10" height="8" rx="1.5" fill="#1a5276" />
-    <rect x="56" y="51" width="10" height="8" rx="1.5" fill="#1a5276" />
-    <rect x="69" y="51" width="10" height="8" rx="1.5" fill="#1a5276" />
-    <rect x="82" y="51" width="16" height="8" rx="1.5" fill="#1a5276" />
-
-    <!-- Row 2 -->
-    <rect x="30" y="62" width="14" height="8" rx="1.5" fill="#1a5276" />
-    <rect x="47" y="62" width="10" height="8" rx="1.5" fill="#1a5276" />
-    <rect x="60" y="62" width="10" height="8" rx="1.5" fill="#1a5276" />
-    <rect x="73" y="62" width="10" height="8" rx="1.5" fill="#1a5276" />
-    <rect x="86" y="62" width="12" height="8" rx="1.5" fill="#1a5276" />
-
-    <!-- Row 3 (spacebar row) -->
-    <rect x="30" y="73" width="10" height="8" rx="1.5" fill="#1a5276" />
-    <rect x="43" y="73" width="36" height="8" rx="1.5" fill="#1a5276" />
-    <rect x="82" y="73" width="16" height="8" rx="1.5" fill="#1a5276" />
-
-    <!-- Gear icon (settings/control) -->
-    <g transform="translate(90, 36)">
-        <circle cx="0" cy="0" r="14" fill="#1a5276" />
-        <path d="M0,-13 L2,-8 L7,-10 L6,-5 L11,-3 L8,1 L13,4 L8,5 L9,10 L4,8 L2,13 L-2,9 L-6,12 L-5,7 L-10,6 L-7,2 L-12,-1 L-7,-3 L-8,-8 L-3,-6 Z"
-              fill="#f39c12" stroke="#e67e22" stroke-width="0.5" />
-        <circle cx="0" cy="0" r="5" fill="#1a5276" />
+    <!-- Wrench on screen -->
+    <g transform="translate(48, 48) scale(2)" fill="#000">
+        <path d="m 11.5 0 c -2.484375 0 -4.5 2.015625 -4.5 4.5 c 0 0.296875 0.027344 0.589844 0.085938 0.878906 l -6.351563 6.351563 c -0.472656 0.472656 -0.734375 1.105469 -0.734375 1.769531 s 0.261719 1.296875 0.734375 1.769531 c 0.972656 0.972657 2.558594 0.972657 3.535156 0 l 6.351563 -6.355469 c 0.289062 0.058594 0.582031 0.085938 0.878906 0.085938 c 2.484375 0 4.5 -2.015625 4.5 -4.5 c 0 -0.574219 -0.109375 -1.144531 -0.324219 -1.675781 l -2.175781 2.175781 h -2.5 v -2.5 l 2.175781 -2.175781 c -0.53125 -0.214844 -1.101562 -0.324219 -1.675781 -0.324219 z m -9 12.5 c 0.550781 0 1 0.449219 1 1 s -0.449219 1 -1 1 s -1 -0.449219 -1 -1 s 0.449219 -1 1 -1 z m 0 0" />
     </g>
+
+    <!-- Laptop base -->
+    <path d="M14,94 L114,94" stroke="#000" stroke-width="4" stroke-linecap="round" />
 </svg>
