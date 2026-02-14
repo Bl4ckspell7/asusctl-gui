@@ -13,11 +13,12 @@ A GTK4/Libadwaita GUI for [asusctl](https://gitlab.com/asus-linux/asusctl) - man
 
 |                                           About                                           |                                           Aura                                           |
 | :---------------------------------------------------------------------------------------: | :--------------------------------------------------------------------------------------: |
-| ![About](https://github.com/user-attachments/assets/d9398083-b044-4c1d-9c9f-986a9bd8178d) | ![Aura](https://github.com/user-attachments/assets/1ef975c1-a2f9-4748-9355-1e15fa52e6d0) |
+| ![About](https://github.com/user-attachments/assets/faa673ac-7539-4d0b-b5ad-639d926b79b4) | ![Aura](https://github.com/user-attachments/assets/215c05e5-ad5c-4bcd-8a28-131b55112fd0) |
+
 
 |                                           Power                                           |                                           Slash                                           |
 | :---------------------------------------------------------------------------------------: | :---------------------------------------------------------------------------------------: |
-| ![Power](https://github.com/user-attachments/assets/599b8f97-843f-4fa1-b585-619227fc5c75) | ![Slash](https://github.com/user-attachments/assets/f7665dfc-2ac5-44a6-8e48-9eeca01b230e) |
+| ![Power](https://github.com/user-attachments/assets/a07cf6d4-880f-4b10-9266-6b24000129bc) | ![Slash](https://github.com/user-attachments/assets/f9cd5487-a12b-4c5f-8ae9-9732e3b0c3da) |
 
 ## Requirements
 
