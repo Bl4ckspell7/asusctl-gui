@@ -22,7 +22,7 @@ A GTK4/Libadwaita GUI for [asusctl](https://gitlab.com/asus-linux/asusctl) - man
 
 ## Requirements
 
-- asusctl installed and configured
+- `asusctl` installed and configured
 
 ## Installation
 
