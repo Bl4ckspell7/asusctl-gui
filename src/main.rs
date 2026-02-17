@@ -6,9 +6,6 @@ use gtk4::gio;
 use gtk4::prelude::*;
 
 fn main() -> gtk4::glib::ExitCode {
-    // Detect available features early so the OnceLock is warm before UI construction
-    backend::detect_features();
-
     // Register resources (this is fine before init)
     gio::resources_register_include!("asusctl-gui.gresource")
         .expect("Failed to register resources.");

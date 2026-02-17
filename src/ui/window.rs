@@ -5,6 +5,7 @@ use gtk4::prelude::*;
 use gtk4::subclass::prelude::*;
 
 use crate::app::APP_NAME;
+use crate::backend;
 use libadwaita as adw;
 use std::time::Duration;
 
@@ -152,24 +153,6 @@ impl AsusctlGuiWindow {
             .vhomogeneous(false)
             .build();
 
-        // Create pages once and store references
-        let about_page = AboutPage::new();
-        let aura_page = AuraPage::new();
-        let power_page = PowerPage::new();
-        let slash_page = SlashPage::new();
-
-        // Add pages to stack
-        stack.add_titled(&about_page, Some(Page::About.as_str()), Page::About.title());
-        stack.add_titled(&aura_page, Some(Page::Aura.as_str()), Page::Aura.title());
-        stack.add_titled(&power_page, Some(Page::Power.as_str()), Page::Power.title());
-        stack.add_titled(&slash_page, Some(Page::Slash.as_str()), Page::Slash.title());
-
-        // Store page references for later refresh
-        imp.about_page.replace(Some(about_page));
-        imp.aura_page.replace(Some(aura_page));
-        imp.power_page.replace(Some(power_page));
-        imp.slash_page.replace(Some(slash_page));
-
         // Create sidebar with navigation items
         let sidebar_list = gtk4::ListBox::builder()
             .selection_mode(gtk4::SelectionMode::Single)
@@ -180,23 +163,6 @@ impl AsusctlGuiWindow {
         for page in Page::ALL {
             let row = Self::create_nav_row(page);
             sidebar_list.append(&row);
-        }
-
-        // Determine startup page
-        let startup_page = if settings.boolean("restore-last-page") {
-            let last_page_str = settings.string("last-page");
-            Page::try_from(last_page_str.as_str()).unwrap_or_default()
-        } else {
-            let startup_page_str = settings.string("startup-page");
-            Page::try_from(startup_page_str.as_str()).unwrap_or_default()
-        };
-
-        // Set initial page
-        stack.set_visible_child_name(startup_page.as_str());
-
-        // Select corresponding sidebar row
-        if let Some(row) = sidebar_list.row_at_index(startup_page.index() as i32) {
-            sidebar_list.select_row(Some(&row));
         }
 
         // Connect row selection to stack page switching
@@ -298,12 +264,26 @@ impl AsusctlGuiWindow {
             .max_sidebar_width(300.0)
             .build();
 
-        self.set_content(Some(&split_view));
+        // Show a loading screen while features are detected in the background
+        let loading_header = adw::HeaderBar::builder()
+            .title_widget(&gtk4::Label::new(Some(APP_NAME)))
+            .build();
+        let spinner = adw::Spinner::builder()
+            .width_request(64)
+            .height_request(64)
+            .halign(gtk4::Align::Center)
+            .valign(gtk4::Align::Center)
+            .vexpand(true)
+            .build();
+        let loading_view = adw::ToolbarView::new();
+        loading_view.add_top_bar(&loading_header);
+        loading_view.set_content(Some(&spinner));
+        self.set_content(Some(&loading_view));
 
         // Setup actions
         self.setup_actions();
 
-        // Store references
+        // Store references (split view swapped in once loading finishes)
         imp.split_view.replace(Some(split_view));
         imp.stack.replace(Some(stack));
         imp.sidebar_list.replace(Some(sidebar_list));
@@ -321,6 +301,84 @@ impl AsusctlGuiWindow {
                 window.restart_refresh_timer(new_interval);
             }
         });
+
+        self.start_background_detection();
+    }
+
+    /// Run feature detection on a background thread, then populate pages on the main thread.
+    fn start_background_detection(&self) {
+        let ready = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let ready_thread = ready.clone();
+        std::thread::spawn(move || {
+            backend::detect_features();
+            ready_thread.store(true, std::sync::atomic::Ordering::Release);
+        });
+        let window_weak = self.downgrade();
+        glib::timeout_add_local(Duration::from_millis(50), move || {
+            if ready.load(std::sync::atomic::Ordering::Acquire) {
+                if let Some(window) = window_weak.upgrade() {
+                    window.populate_pages();
+                }
+                glib::ControlFlow::Break
+            } else {
+                glib::ControlFlow::Continue
+            }
+        });
+    }
+
+    /// Called once feature detection completes on the background thread.
+    /// Creates the real page widgets and swaps out the loading spinner.
+    fn populate_pages(&self) {
+        let imp = self.imp();
+
+        let Some(stack) = imp.stack.borrow().as_ref().cloned() else {
+            return;
+        };
+        let Some(settings) = imp.settings.borrow().as_ref().cloned() else {
+            return;
+        };
+
+        // Create pages (detect_features() is now cached and returns instantly)
+        let about_page = AboutPage::new();
+        let aura_page = AuraPage::new();
+        let power_page = PowerPage::new();
+        let slash_page = SlashPage::new();
+
+        // Add pages to stack
+        stack.add_titled(&about_page, Some(Page::About.as_str()), Page::About.title());
+        stack.add_titled(&aura_page, Some(Page::Aura.as_str()), Page::Aura.title());
+        stack.add_titled(&power_page, Some(Page::Power.as_str()), Page::Power.title());
+        stack.add_titled(&slash_page, Some(Page::Slash.as_str()), Page::Slash.title());
+
+        // Store page references for later refresh
+        imp.about_page.replace(Some(about_page));
+        imp.aura_page.replace(Some(aura_page));
+        imp.power_page.replace(Some(power_page));
+        imp.slash_page.replace(Some(slash_page));
+
+        // Swap loading screen for the full split view
+        if let Some(split_view) = imp.split_view.borrow().as_ref() {
+            self.set_content(Some(split_view));
+        }
+
+        // Determine startup page
+        let startup_page = if settings.boolean("restore-last-page") {
+            let last_page_str = settings.string("last-page");
+            Page::try_from(last_page_str.as_str()).unwrap_or_default()
+        } else {
+            let startup_page_str = settings.string("startup-page");
+            Page::try_from(startup_page_str.as_str()).unwrap_or_default()
+        };
+
+        // Set initial page
+        stack.set_visible_child_name(startup_page.as_str());
+
+        // Select corresponding sidebar row
+        if let Some(sidebar_list) = imp.sidebar_list.borrow().as_ref() {
+            if let Some(row) = sidebar_list.row_at_index(startup_page.index() as i32) {
+                sidebar_list.select_row(Some(&row));
+            }
+        }
     }
 
     fn setup_actions(&self) {
