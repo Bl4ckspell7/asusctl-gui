@@ -148,7 +148,7 @@ impl AsusctlGuiWindow {
 
         // Create the content stack for pages
         let stack = gtk4::Stack::builder()
-            .transition_type(gtk4::StackTransitionType::Crossfade)
+            .transition_type(gtk4::StackTransitionType::None)
             .hhomogeneous(false)
             .vhomogeneous(false)
             .build();
