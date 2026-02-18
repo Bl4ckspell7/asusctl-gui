@@ -310,9 +310,7 @@ pub fn start_rainbow(speed: u32) -> Result<()> {
         let pid_dir = pid_path.parent().unwrap();
 
         std::fs::create_dir_all(pid_dir)
-            .map_err(|e| {
-                AsusctlError::CommandFailed(format!("Failed to create state dir: {e}"))
-            })?;
+            .map_err(|e| AsusctlError::CommandFailed(format!("Failed to create state dir: {e}")))?;
 
         let pid_path_str = pid_path.display();
         let script = format!(

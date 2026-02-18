@@ -30,9 +30,14 @@ pub fn get_kernel_version() -> String {
         .unwrap_or_default()
 }
 
-/// Get the Linux distribution name from /etc/os-release (PRETTY_NAME field).
+/// Get the Linux distribution name from os-release (PRETTY_NAME field).
+///
+/// Tries `/run/host/os-release` first (available inside Flatpak) to get
+/// the real host distro, then falls back to `/etc/os-release`.
 pub fn get_distro() -> String {
-    let content = fs::read_to_string("/etc/os-release").unwrap_or_default();
+    let content = fs::read_to_string("/run/host/os-release")
+        .or_else(|_| fs::read_to_string("/etc/os-release"))
+        .unwrap_or_default();
     for line in content.lines() {
         if let Some(value) = line.strip_prefix("PRETTY_NAME=") {
             return value.trim_matches('"').to_string();

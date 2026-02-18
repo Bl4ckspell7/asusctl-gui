@@ -99,14 +99,7 @@ pub fn read_dbus_property_at(path: &str, interface: &str, property: &str) -> Res
 /// Call a D-Bus method (no arguments) and return its stdout.
 pub fn call_dbus_method(path: &str, interface: &str, method: &str) -> Result<String> {
     let output = host_command("busctl")
-        .args([
-            "--system",
-            "call",
-            DBUS_DEST,
-            path,
-            interface,
-            method,
-        ])
+        .args(["--system", "call", DBUS_DEST, path, interface, method])
         .output()
         .map_err(|e| AsusctlError::CommandFailed(format!("busctl call failed: {e}")))?;
 
