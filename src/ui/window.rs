@@ -428,7 +428,7 @@ impl AsusctlGuiWindow {
             .application_name(APP_NAME)
             .application_icon("com.github.bl4ckspell7.asusctl-gui")
             .developer_name("Bl4ckspell")
-            .version("0.1.0")
+            .version(env!("CARGO_PKG_VERSION"))
             .website("https://github.com/Bl4ckspell7/asusctl-gui")
             .license_type(gtk4::License::Gpl30)
             .build();
