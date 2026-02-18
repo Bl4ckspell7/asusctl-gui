@@ -9,6 +9,9 @@ use crate::backend;
 use libadwaita as adw;
 use std::time::Duration;
 
+const DEFAULT_WIDTH: i32 = 840;
+const DEFAULT_HEIGHT: i32 = 540;
+
 use super::{
     AboutPage, AuraPage, Page, PowerPage, PreferencesDialog, Refreshable, SlashPage, ThemeSwitcher,
 };
@@ -66,8 +69,8 @@ impl AsusctlGuiWindow {
         glib::Object::builder()
             .property("application", app)
             .property("title", APP_NAME)
-            .property("default-width", 840)
-            .property("default-height", 540)
+            .property("default-width", DEFAULT_WIDTH)
+            .property("default-height", DEFAULT_HEIGHT)
             .build()
     }
 
