@@ -242,16 +242,9 @@ impl AsusctlGuiWindow {
         // Create content toolbar view with header
         let content_header = adw::HeaderBar::builder().show_title(false).build();
 
-        // Wrap stack in a scrolled window to allow content scrolling
-        let content_scroll = gtk4::ScrolledWindow::builder()
-            .hscrollbar_policy(gtk4::PolicyType::Never)
-            .vscrollbar_policy(gtk4::PolicyType::Automatic)
-            .child(&stack)
-            .build();
-
         let content_toolbar = adw::ToolbarView::new();
         content_toolbar.add_top_bar(&content_header);
-        content_toolbar.set_content(Some(&content_scroll));
+        content_toolbar.set_content(Some(&stack));
 
         // Create content navigation page
         let content_page = adw::NavigationPage::builder()
@@ -347,11 +340,20 @@ impl AsusctlGuiWindow {
         let power_page = PowerPage::new();
         let slash_page = SlashPage::new();
 
-        // Add pages to stack
-        stack.add_titled(&about_page, Some(Page::About.as_str()), Page::About.title());
-        stack.add_titled(&aura_page, Some(Page::Aura.as_str()), Page::Aura.title());
-        stack.add_titled(&power_page, Some(Page::Power.as_str()), Page::Power.title());
-        stack.add_titled(&slash_page, Some(Page::Slash.as_str()), Page::Slash.title());
+        // Wrap each page in its own ScrolledWindow so scroll state is independent
+        for (page_widget, page) in [
+            (about_page.upcast_ref::<gtk4::Widget>(), Page::About),
+            (aura_page.upcast_ref::<gtk4::Widget>(), Page::Aura),
+            (power_page.upcast_ref::<gtk4::Widget>(), Page::Power),
+            (slash_page.upcast_ref::<gtk4::Widget>(), Page::Slash),
+        ] {
+            let scroll = gtk4::ScrolledWindow::builder()
+                .hscrollbar_policy(gtk4::PolicyType::Never)
+                .vscrollbar_policy(gtk4::PolicyType::Automatic)
+                .child(page_widget)
+                .build();
+            stack.add_titled(&scroll, Some(page.as_str()), page.title());
+        }
 
         // Store page references for later refresh
         imp.about_page.replace(Some(about_page));
