@@ -205,11 +205,11 @@ pub fn get_aura_path() -> Option<&'static String> {
             // Aura interface has "Brightness" property (keyboard brightness)
             for path in &paths {
                 if path_has_interface(path, AURA_INTERFACE, "Brightness") {
-                    eprintln!("[asusctl-gui] Discovered Aura D-Bus path: {path}");
+                    log::info!("Discovered Aura D-Bus path: {path}");
                     return Some(path.clone());
                 }
             }
-            eprintln!("[asusctl-gui] Warning: No Aura D-Bus path found");
+            log::warn!("No Aura D-Bus path found");
             None
         })
         .as_ref()
@@ -223,11 +223,11 @@ pub fn get_slash_path() -> Option<&'static String> {
             // Slash interface has "Enabled" property
             for path in &paths {
                 if path_has_interface(path, SLASH_INTERFACE, "Enabled") {
-                    eprintln!("[asusctl-gui] Discovered Slash D-Bus path: {path}");
+                    log::info!("Discovered Slash D-Bus path: {path}");
                     return Some(path.clone());
                 }
             }
-            eprintln!("[asusctl-gui] Warning: No Slash D-Bus path found");
+            log::warn!("No Slash D-Bus path found");
             None
         })
         .as_ref()

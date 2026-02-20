@@ -26,27 +26,27 @@ pub fn get_profile_state() -> Result<ProfileState> {
 pub fn set_profile(profile: PowerProfile) -> Result<()> {
     // Try powerprofilesctl first for GNOME integration
     if set_profile_ppdctl(profile).is_ok() {
-        eprintln!("[asusctl-gui] Set power profile to {profile}, using powerprofilesctl");
+        log::info!("Set power profile to {profile}, using powerprofilesctl");
         return Ok(());
     }
 
     // Fall back to asusctl
     run_asusctl(&["profile", "set", &profile.to_string()])?;
-    eprintln!("[asusctl-gui] Set power profile to {profile}, using asusctl");
+    log::info!("Set power profile to {profile}, using asusctl");
     Ok(())
 }
 
 /// Set the power profile to use when on AC power.
 pub fn set_profile_ac(profile: PowerProfile) -> Result<()> {
     run_asusctl(&["profile", "set", &profile.to_string(), "--ac"])?;
-    eprintln!("[asusctl-gui] Set AC power profile to {profile}");
+    log::info!("Set AC power profile to {profile}");
     Ok(())
 }
 
 /// Set the power profile to use when on battery power.
 pub fn set_profile_battery(profile: PowerProfile) -> Result<()> {
     run_asusctl(&["profile", "set", &profile.to_string(), "--battery"])?;
-    eprintln!("[asusctl-gui] Set battery power profile to {profile}");
+    log::info!("Set battery power profile to {profile}");
     Ok(())
 }
 
@@ -67,7 +67,7 @@ pub fn get_charge_limit_dbus() -> Result<u8> {
 /// Set charge limit (20-100).
 pub fn set_charge_limit(limit: u8) -> Result<()> {
     run_asusctl(&["battery", "limit", &limit.to_string()])?;
-    eprintln!("[asusctl-gui] Set charge limit to {limit}%");
+    log::info!("Set charge limit to {limit}%");
     Ok(())
 }
 

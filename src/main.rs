@@ -6,6 +6,8 @@ use gtk4::gio;
 use gtk4::prelude::*;
 
 fn main() -> gtk4::glib::ExitCode {
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("trace")).init();
+
     // Register resources (this is fine before init)
     gio::resources_register_include!("asusctl-gui.gresource")
         .expect("Failed to register resources.");

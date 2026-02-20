@@ -144,7 +144,7 @@ impl AuraPage {
                 }
                 if button.is_active() {
                     if let Err(e) = backend::set_keyboard_brightness(level_clone) {
-                        eprintln!("Failed to set brightness: {e}");
+                        log::error!("Failed to set brightness: {e}");
                     }
                 }
             });
@@ -465,13 +465,13 @@ impl AuraPage {
                 if switch.is_active() {
                     let speed = speed_scale_ref.value() as u32;
                     if let Err(e) = backend::start_rainbow(speed) {
-                        eprintln!("Failed to start rainbow: {e}");
+                        log::error!("Failed to start rainbow: {e}");
                     }
                     mode_group_ref.set_sensitive(false);
                     color_group_ref.set_sensitive(false);
                 } else {
                     if let Err(e) = backend::stop_rainbow() {
-                        eprintln!("Failed to stop rainbow: {e}");
+                        log::error!("Failed to stop rainbow: {e}");
                     }
                     mode_group_ref.set_sensitive(true);
                     color_group_ref.set_sensitive(true);
@@ -493,7 +493,7 @@ impl AuraPage {
                     if switch.is_active() {
                         let speed = scale.value() as u32;
                         if let Err(e) = backend::start_rainbow(speed) {
-                            eprintln!("Failed to restart rainbow: {e}");
+                            log::error!("Failed to restart rainbow: {e}");
                         }
                     }
                 }
@@ -589,7 +589,7 @@ impl AuraPage {
             direction,
             zone.as_deref(),
         ) {
-            eprintln!("Failed to set aura mode: {e}");
+            log::error!("Failed to set aura mode: {e}");
         }
     }
 
@@ -622,7 +622,7 @@ impl AuraPage {
                 }
             }
             Err(e) => {
-                eprintln!("Failed to get keyboard brightness: {e}");
+                log::error!("Failed to get keyboard brightness: {e}");
             }
         }
 
@@ -705,7 +705,7 @@ impl AuraPage {
                 self.update_mode_visibility();
             }
             Err(e) => {
-                eprintln!("Failed to get aura mode data: {e}");
+                log::error!("Failed to get aura mode data: {e}");
             }
         }
 
