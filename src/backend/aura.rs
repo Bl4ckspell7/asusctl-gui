@@ -35,7 +35,7 @@ pub fn get_keyboard_brightness_dbus() -> Result<KeyboardBrightness> {
 /// Set keyboard brightness level.
 pub fn set_keyboard_brightness(level: KeyboardBrightness) -> Result<()> {
     run_asusctl(&["leds", "set", &level.to_string()])?;
-    eprintln!("[asusctl-gui] Set keyboard brightness to {level}");
+    log::info!("Set keyboard brightness to {level}");
     Ok(())
 }
 
@@ -148,7 +148,7 @@ pub fn set_aura_mode(
     }
 
     run_asusctl(&args)?;
-    eprintln!("[asusctl-gui] Set aura mode to {mode}");
+    log::info!("Set aura mode to {mode}");
     Ok(())
 }
 
@@ -219,7 +219,7 @@ pub fn stop_rainbow() -> Result<()> {
              rm -f \"$P\""
         );
         let _ = host_command("bash").args(["-c", &script]).output();
-        eprintln!("[asusctl-gui] Stopped rainbow effect");
+        log::info!("Stopped rainbow effect");
         return Ok(());
     }
 
@@ -231,7 +231,7 @@ pub fn stop_rainbow() -> Result<()> {
 
     let _ = host_command("kill").arg(&pid_str).output();
     let _ = std::fs::remove_file(&pid_path);
-    eprintln!("[asusctl-gui] Stopped rainbow effect");
+    log::info!("Stopped rainbow effect");
     Ok(())
 }
 
@@ -334,7 +334,7 @@ pub fn start_rainbow(speed: u32) -> Result<()> {
             .map_err(|e| AsusctlError::CommandFailed(format!("Failed to start rainbow: {e}")))?;
     }
 
-    eprintln!("[asusctl-gui] Started rainbow effect (speed={speed}, delay={delay:.6})");
+    log::info!("Started rainbow effect (speed={speed}, delay={delay:.6})");
     Ok(())
 }
 

@@ -148,7 +148,7 @@ impl SlashPage {
                 };
 
                 if let Err(e) = result {
-                    eprintln!("Failed to toggle slash: {e}");
+                    log::error!("Failed to toggle slash: {e}");
                 }
 
                 // Enable/disable brightness slider based on slash state
@@ -187,7 +187,7 @@ impl SlashPage {
                 }
                 let value = scale.value() as u8;
                 if let Err(e) = backend::set_slash_brightness(value) {
-                    eprintln!("Failed to set slash brightness: {e}");
+                    log::error!("Failed to set slash brightness: {e}");
                 }
             });
         }
@@ -237,7 +237,7 @@ impl SlashPage {
                 };
 
                 if let Err(e) = backend::set_slash_mode(mode) {
-                    eprintln!("Failed to set slash mode: {e}");
+                    log::error!("Failed to set slash mode: {e}");
                 }
             });
         }
@@ -262,7 +262,7 @@ impl SlashPage {
                 }
                 let interval = combo.selected() as u8;
                 if let Err(e) = backend::set_slash_interval(interval) {
-                    eprintln!("Failed to set slash interval: {e}");
+                    log::error!("Failed to set slash interval: {e}");
                 }
             });
         }
@@ -289,7 +289,7 @@ impl SlashPage {
                     return;
                 }
                 if let Err(e) = backend::set_slash_show_on_boot(switch.is_active()) {
-                    eprintln!("Failed to set show on boot: {e}");
+                    log::error!("Failed to set show on boot: {e}");
                 }
             });
         }
@@ -308,7 +308,7 @@ impl SlashPage {
                     return;
                 }
                 if let Err(e) = backend::set_slash_show_on_shutdown(switch.is_active()) {
-                    eprintln!("Failed to set show on shutdown: {e}");
+                    log::error!("Failed to set show on shutdown: {e}");
                 }
             });
         }
@@ -327,7 +327,7 @@ impl SlashPage {
                     return;
                 }
                 if let Err(e) = backend::set_slash_show_on_sleep(switch.is_active()) {
-                    eprintln!("Failed to set show on sleep: {e}");
+                    log::error!("Failed to set show on sleep: {e}");
                 }
             });
         }
@@ -346,7 +346,7 @@ impl SlashPage {
                     return;
                 }
                 if let Err(e) = backend::set_slash_show_on_battery(switch.is_active()) {
-                    eprintln!("Failed to set show on battery: {e}");
+                    log::error!("Failed to set show on battery: {e}");
                 }
             });
         }
@@ -365,7 +365,7 @@ impl SlashPage {
                     return;
                 }
                 if let Err(e) = backend::set_slash_show_battery_warning(switch.is_active()) {
-                    eprintln!("Failed to set show battery warning: {e}");
+                    log::error!("Failed to set show battery warning: {e}");
                 }
             });
         }
@@ -396,7 +396,7 @@ impl SlashPage {
                     enabled
                 }
                 Err(e) => {
-                    eprintln!("Failed to get slash enabled state: {e}");
+                    log::error!("Failed to get slash enabled state: {e}");
                     false
                 }
             }
@@ -413,7 +413,7 @@ impl SlashPage {
                     scale.set_value(brightness as f64);
                 }
                 Err(e) => {
-                    eprintln!("Failed to get slash brightness: {e}");
+                    log::error!("Failed to get slash brightness: {e}");
                 }
             }
         }
@@ -444,7 +444,7 @@ impl SlashPage {
                     combo.set_selected(index);
                 }
                 Err(e) => {
-                    eprintln!("Failed to get slash mode: {e}");
+                    log::error!("Failed to get slash mode: {e}");
                 }
             }
         }
@@ -457,7 +457,7 @@ impl SlashPage {
                     combo.set_selected(interval as u32);
                 }
                 Err(e) => {
-                    eprintln!("Failed to get slash interval: {e}");
+                    log::error!("Failed to get slash interval: {e}");
                 }
             }
         }

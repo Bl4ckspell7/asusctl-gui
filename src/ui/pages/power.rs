@@ -147,7 +147,7 @@ impl PowerPage {
                 }
                 if button.is_active() {
                     if let Err(e) = backend::set_profile(profile_clone) {
-                        eprintln!("Failed to set profile: {e}");
+                        log::error!("Failed to set profile: {e}");
                     }
                 }
             });
@@ -192,7 +192,7 @@ impl PowerPage {
                     _ => PowerProfile::Performance,
                 };
                 if let Err(e) = backend::set_profile_ac(profile) {
-                    eprintln!("Failed to set AC profile: {e}");
+                    log::error!("Failed to set AC profile: {e}");
                 }
             });
         }
@@ -230,7 +230,7 @@ impl PowerPage {
                     _ => PowerProfile::Performance,
                 };
                 if let Err(e) = backend::set_profile_battery(profile) {
-                    eprintln!("Failed to set battery profile: {e}");
+                    log::error!("Failed to set battery profile: {e}");
                 }
             });
         }
@@ -267,7 +267,7 @@ impl PowerPage {
                     }
                     let value = scale.value() as u8;
                     if let Err(e) = backend::set_charge_limit(value) {
-                        eprintln!("Failed to set charge limit: {e}");
+                        log::error!("Failed to set charge limit: {e}");
                     }
                 });
             }
@@ -334,7 +334,7 @@ impl PowerPage {
                 }
             }
             Err(e) => {
-                eprintln!("Failed to get profile state: {e}");
+                log::error!("Failed to get profile state: {e}");
             }
         }
 
@@ -347,7 +347,7 @@ impl PowerPage {
                         scale.set_value(limit as f64);
                     }
                     Err(e) => {
-                        eprintln!("Failed to get charge limit: {e}");
+                        log::error!("Failed to get charge limit: {e}");
                     }
                 }
             }

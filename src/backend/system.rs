@@ -82,8 +82,8 @@ pub fn detect_features() -> &'static SupportedFeatures {
             }
         }
 
-        eprintln!(
-            "[asusctl-gui] Feature detection: asusctl={}, asusd={}, aura={}, platform={}, slash={}, charge_control={}, modes={}",
+        log::info!(
+            "Feature detection: asusctl={}, asusd={}, aura={}, platform={}, slash={}, charge_control={}, modes={}",
             features.asusctl_installed,
             features.asusd_running,
             features.has_aura,

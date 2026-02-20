@@ -14,14 +14,14 @@ use super::types::SlashMode;
 /// Enable slash LED bar.
 pub fn enable_slash() -> Result<()> {
     run_asusctl(&["slash", "--enable"])?;
-    eprintln!("[asusctl-gui] Enabled slash LED bar");
+    log::info!("Enabled slash LED bar");
     Ok(())
 }
 
 /// Disable slash LED bar.
 pub fn disable_slash() -> Result<()> {
     run_asusctl(&["slash", "--disable"])?;
-    eprintln!("[asusctl-gui] Disabled slash LED bar");
+    log::info!("Disabled slash LED bar");
     Ok(())
 }
 
@@ -32,21 +32,21 @@ pub fn disable_slash() -> Result<()> {
 /// Set slash brightness (0-255).
 pub fn set_slash_brightness(brightness: u8) -> Result<()> {
     run_asusctl(&["slash", "--brightness", &brightness.to_string()])?;
-    eprintln!("[asusctl-gui] Set slash brightness to {brightness}");
+    log::info!("Set slash brightness to {brightness}");
     Ok(())
 }
 
 /// Set slash mode.
 pub fn set_slash_mode(mode: SlashMode) -> Result<()> {
     run_asusctl(&["slash", "--mode", &mode.to_string()])?;
-    eprintln!("[asusctl-gui] Set slash mode to {mode}");
+    log::info!("Set slash mode to {mode}");
     Ok(())
 }
 
 /// Set slash interval (0-5).
 pub fn set_slash_interval(interval: u8) -> Result<()> {
     run_asusctl(&["slash", "--interval", &interval.to_string()])?;
-    eprintln!("[asusctl-gui] Set slash interval to {interval}");
+    log::info!("Set slash interval to {interval}");
     Ok(())
 }
 
@@ -153,7 +153,7 @@ pub fn set_slash_show_on_boot(value: bool) -> Result<()> {
         "--show-on-boot",
         if value { "true" } else { "false" },
     ])?;
-    eprintln!("[asusctl-gui] Set slash show-on-boot to {value}");
+    log::info!("Set slash show-on-boot to {value}");
     Ok(())
 }
 
@@ -163,7 +163,7 @@ pub fn set_slash_show_on_shutdown(value: bool) -> Result<()> {
         "--show-on-shutdown",
         if value { "true" } else { "false" },
     ])?;
-    eprintln!("[asusctl-gui] Set slash show-on-shutdown to {value}");
+    log::info!("Set slash show-on-shutdown to {value}");
     Ok(())
 }
 
@@ -173,7 +173,7 @@ pub fn set_slash_show_on_sleep(value: bool) -> Result<()> {
         "--show-on-sleep",
         if value { "true" } else { "false" },
     ])?;
-    eprintln!("[asusctl-gui] Set slash show-on-sleep to {value}");
+    log::info!("Set slash show-on-sleep to {value}");
     Ok(())
 }
 
@@ -183,7 +183,7 @@ pub fn set_slash_show_on_battery(value: bool) -> Result<()> {
         "--show-on-battery",
         if value { "true" } else { "false" },
     ])?;
-    eprintln!("[asusctl-gui] Set slash show-on-battery to {value}");
+    log::info!("Set slash show-on-battery to {value}");
     Ok(())
 }
 
@@ -193,7 +193,7 @@ pub fn set_slash_show_battery_warning(value: bool) -> Result<()> {
         "--show-battery-warning",
         if value { "true" } else { "false" },
     ])?;
-    eprintln!("[asusctl-gui] Set slash show-battery-warning to {value}");
+    log::info!("Set slash show-battery-warning to {value}");
     Ok(())
 }
 
