@@ -517,6 +517,10 @@ impl AuraPage {
         if let Some(row) = imp.direction_row.borrow().as_ref() {
             row.set_visible(mode.needs_direction());
         }
+        let needs_any_colour = mode.needs_colour() || mode.needs_colour2();
+        if let Some(group) = imp.color_group.borrow().as_ref() {
+            group.set_visible(needs_any_colour);
+        }
         if let Some(row) = imp.color_row.borrow().as_ref() {
             row.set_visible(mode.needs_colour());
         }
