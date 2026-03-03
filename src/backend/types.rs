@@ -205,14 +205,16 @@ impl AuraMode {
 
     /// Convert from D-Bus LedMode numeric value to AuraMode
     ///
-    /// Based on asusd's AuraEffect enum (rog-aura crate):
-    /// Static = 0, Breathe = 1, Strobe = 2, Rainbow = 3, Star = 4, Rain = 5,
-    /// Highlight = 6, Laser = 7, Ripple = 8, Pulse = 9, Comet = 10, Flash = 11
+    /// Based on asusd's AuraEffect enum (rog-aura crate, asusctl >= 6.x):
+    /// Static = 0, Breathe = 1, RainbowCycle = 2, RainbowWave = 3, Star = 4,
+    /// Rain = 5, Highlight = 6, Laser = 7, Ripple = 8, Pulse = 9, Comet = 10,
+    /// Flash = 11
     pub fn from_dbus_value(value: u32) -> Option<Self> {
         match value {
             0 => Some(Self::Static),
             1 => Some(Self::Breathe),
-            3 => Some(Self::RainbowCycle),
+            2 => Some(Self::RainbowCycle),
+            3 => Some(Self::RainbowWave),
             4 => Some(Self::Stars),
             5 => Some(Self::Rain),
             6 => Some(Self::Highlight),

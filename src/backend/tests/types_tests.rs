@@ -257,7 +257,8 @@ fn test_aura_mode_needs_direction() {
 fn test_aura_mode_from_dbus_value() {
     assert_eq!(AuraMode::from_dbus_value(0), Some(AuraMode::Static));
     assert_eq!(AuraMode::from_dbus_value(1), Some(AuraMode::Breathe));
-    assert_eq!(AuraMode::from_dbus_value(3), Some(AuraMode::RainbowCycle));
+    assert_eq!(AuraMode::from_dbus_value(2), Some(AuraMode::RainbowCycle));
+    assert_eq!(AuraMode::from_dbus_value(3), Some(AuraMode::RainbowWave));
     assert_eq!(AuraMode::from_dbus_value(4), Some(AuraMode::Stars));
     assert_eq!(AuraMode::from_dbus_value(5), Some(AuraMode::Rain));
     assert_eq!(AuraMode::from_dbus_value(6), Some(AuraMode::Highlight));
@@ -268,7 +269,6 @@ fn test_aura_mode_from_dbus_value() {
     assert_eq!(AuraMode::from_dbus_value(11), Some(AuraMode::Flash));
 
     // Invalid values
-    assert_eq!(AuraMode::from_dbus_value(2), None); // Strobe is not mapped
     assert_eq!(AuraMode::from_dbus_value(12), None);
     assert_eq!(AuraMode::from_dbus_value(100), None);
 }
