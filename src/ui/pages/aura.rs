@@ -16,7 +16,8 @@ mod imp {
     pub struct AuraPage {
         pub available: RefCell<bool>,
         pub brightness_buttons: RefCell<Vec<gtk4::ToggleButton>>,
-        pub mode_buttons: RefCell<Vec<(gtk4::ToggleButton, AuraMode)>>,
+        pub mode_combo: RefCell<Option<adw::ComboRow>>,
+        pub supported_modes: RefCell<Vec<AuraMode>>,
         pub speed_buttons: RefCell<Vec<(gtk4::ToggleButton, AuraSpeed)>>,
         pub direction_buttons: RefCell<Vec<(gtk4::ToggleButton, AuraDirection)>>,
         pub color_button: RefCell<Option<gtk4::ColorDialogButton>>,
@@ -170,18 +171,19 @@ impl AuraPage {
             .title("Lighting Mode")
             .build();
 
-        let mode_row = adw::ActionRow::builder().title("Mode").build();
-        let mode_box = gtk4::Box::builder()
-            .orientation(gtk4::Orientation::Horizontal)
-            .css_classes(["linked"])
-            .valign(gtk4::Align::Center)
-            .build();
-
         // Pre-fetch help texts for all supported modes
         let mode_help: std::collections::HashMap<AuraMode, String> = supported_modes
             .iter()
             .filter_map(|&m| backend::get_aura_mode_help(m).map(|h| (m, h)))
             .collect();
+        let mode_help = std::rc::Rc::new(mode_help);
+
+        let mode_labels: Vec<&str> = supported_modes.iter().map(|m| m.label()).collect();
+        let mode_list = gtk4::StringList::new(&mode_labels);
+        let mode_combo = adw::ComboRow::builder()
+            .title("Mode")
+            .model(&mode_list)
+            .build();
 
         // Info button with popover showing help for current mode
         let info_popover_label = gtk4::Label::builder()
@@ -201,33 +203,6 @@ impl AuraPage {
         info_btn.add_css_class("flat");
         info_btn.add_css_class("circular");
 
-        let mode_help = std::rc::Rc::new(mode_help);
-
-        let mut mode_btns: Vec<(gtk4::ToggleButton, AuraMode)> = Vec::new();
-        for &mode in &supported_modes {
-            let btn = gtk4::ToggleButton::builder().label(mode.label()).build();
-
-            let this = self.clone();
-            let popover_label = info_popover_label.clone();
-            let help_map = mode_help.clone();
-            btn.connect_clicked(move |button| {
-                if *this.imp().refreshing.borrow() {
-                    return;
-                }
-                if button.is_active() {
-                    *this.imp().selected_mode.borrow_mut() = mode;
-                    // Update info popover text for current mode
-                    if let Some(help) = help_map.get(&mode) {
-                        popover_label.set_text(help);
-                    }
-                    this.update_mode_visibility();
-                    this.apply_aura();
-                }
-            });
-            mode_box.append(&btn);
-            mode_btns.push((btn, mode));
-        }
-
         // Set initial popover text for default mode
         if let Some(first_mode) = supported_modes.first() {
             if let Some(help) = mode_help.get(first_mode) {
@@ -235,19 +210,29 @@ impl AuraPage {
             }
         }
 
-        // Link mode buttons together
-        for i in 1..mode_btns.len() {
-            mode_btns[i].0.set_group(Some(&mode_btns[0].0));
+        mode_group.set_header_suffix(Some(&info_btn));
+
+        {
+            let this = self.clone();
+            let modes = supported_modes.clone();
+            let help_map = mode_help.clone();
+            mode_combo.connect_selected_notify(move |combo| {
+                if *this.imp().refreshing.borrow() {
+                    return;
+                }
+                let idx = combo.selected() as usize;
+                if let Some(&mode) = modes.get(idx) {
+                    *this.imp().selected_mode.borrow_mut() = mode;
+                    if let Some(help) = help_map.get(&mode) {
+                        info_popover_label.set_text(help);
+                    }
+                    this.update_mode_visibility();
+                    this.apply_aura();
+                }
+            });
         }
 
-        let mode_suffix = gtk4::Box::builder()
-            .orientation(gtk4::Orientation::Horizontal)
-            .spacing(8)
-            .build();
-        mode_suffix.append(&mode_box);
-        mode_suffix.append(&info_btn);
-        mode_row.add_suffix(&mode_suffix);
-        mode_group.add(&mode_row);
+        mode_group.add(&mode_combo);
 
         // Speed row
         let speed_row = adw::ActionRow::builder().title("Speed").build();
@@ -501,7 +486,8 @@ impl AuraPage {
         }
 
         // Store references
-        imp.mode_buttons.replace(mode_btns);
+        imp.mode_combo.replace(Some(mode_combo));
+        imp.supported_modes.replace(supported_modes);
         imp.speed_buttons.replace(speed_btns);
         imp.direction_buttons.replace(direction_btns);
         imp.color_button.replace(Some(color_button));
@@ -517,7 +503,6 @@ impl AuraPage {
         imp.rainbow_speed_scale.replace(Some(speed_scale));
 
         // Set default mode and visibility
-        mode_btns_first_active(&imp.mode_buttons.borrow());
         self.update_mode_visibility();
     }
 
@@ -629,19 +614,15 @@ impl AuraPage {
         // Get full aura mode data via D-Bus and update all controls
         match backend::get_aura_mode_data_dbus() {
             Ok(mode_data) => {
-                // Update mode buttons
+                // Update mode combo
                 {
-                    let mode_buttons = imp.mode_buttons.borrow();
-                    let _guards: Vec<_> = mode_buttons
-                        .iter()
-                        .map(|(btn, _)| btn.freeze_notify())
-                        .collect();
-                    for (btn, mode) in mode_buttons.iter() {
-                        if *mode == mode_data.mode {
-                            btn.set_active(true);
-                            *imp.selected_mode.borrow_mut() = mode_data.mode;
-                            break;
+                    let modes = imp.supported_modes.borrow();
+                    if let Some(idx) = modes.iter().position(|m| *m == mode_data.mode) {
+                        if let Some(combo) = imp.mode_combo.borrow().as_ref() {
+                            let _guard = combo.freeze_notify();
+                            combo.set_selected(idx as u32);
                         }
+                        *imp.selected_mode.borrow_mut() = mode_data.mode;
                     }
                 }
 
@@ -731,12 +712,6 @@ fn rgba_to_hex(rgba: &gtk4::gdk::RGBA) -> String {
     let g = (rgba.green() * 255.0) as u8;
     let b = (rgba.blue() * 255.0) as u8;
     format!("{r:02x}{g:02x}{b:02x}")
-}
-
-fn mode_btns_first_active(btns: &[(gtk4::ToggleButton, AuraMode)]) {
-    if let Some((btn, _)) = btns.first() {
-        btn.set_active(true);
-    }
 }
 
 impl Default for AuraPage {
