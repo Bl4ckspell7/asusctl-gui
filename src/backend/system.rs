@@ -179,27 +179,17 @@ fn parse_supported_features(output: &str) -> Result<SupportedFeatures> {
         }
     }
 
-    // Parse aura modes
+    // Parse aura modes — match whole words to avoid substring false positives
+    // (e.g. "Rain" matching inside "RainbowCycle")
     let aura_section = extract_section(output, "Supported Aura Modes:");
-    for mode_name in [
-        "Static",
-        "Breathe",
-        "RainbowCycle",
-        "RainbowWave",
-        "Stars",
-        "Rain",
-        "Highlight",
-        "Laser",
-        "Ripple",
-        "Pulse",
-        "Comet",
-        "Flash",
-    ] {
-        if aura_section.contains(mode_name) {
-            if let Ok(aura_mode) = AuraMode::from_str(mode_name) {
-                if !features.aura_modes.contains(&aura_mode) {
-                    features.aura_modes.push(aura_mode);
-                }
+    for line in aura_section.lines() {
+        let trimmed = line.trim().trim_end_matches(',');
+        if trimmed.is_empty() || trimmed == "[" || trimmed == "]" {
+            continue;
+        }
+        if let Ok(aura_mode) = AuraMode::from_str(trimmed) {
+            if !features.aura_modes.contains(&aura_mode) {
+                features.aura_modes.push(aura_mode);
             }
         }
     }
