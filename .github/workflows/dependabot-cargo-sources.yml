@@ -1,0 +1,36 @@
+name: Update cargo-sources.json
+
+permissions:
+    contents: write
+
+on:
+    pull_request:
+        paths:
+            - "Cargo.lock"
+
+jobs:
+    update-cargo-sources:
+        if: github.actor == 'dependabot[bot]'
+        runs-on: ubuntu-latest
+
+        steps:
+            - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+              with:
+                  ref: ${{ github.head_ref }}
+
+            - uses: astral-sh/setup-uv@6b9c6063abd6010835644d4c2e1bef4cf5cd0fca # v6.0.1
+
+            - name: Install flatpak-cargo-generator
+              run: uv tool install flatpak-cargo-generator
+
+            - name: Regenerate cargo-sources.json
+              run: flatpak-cargo-generator Cargo.lock -o cargo-sources.json
+
+            - name: Commit and push if changed
+              run: |
+                  git diff --quiet cargo-sources.json && exit 0
+                  git config user.name "github-actions[bot]"
+                  git config user.email "github-actions[bot]@users.noreply.github.com"
+                  git add cargo-sources.json
+                  git commit -m "fix: regenerate cargo-sources.json for updated Cargo.lock"
+                  git push
