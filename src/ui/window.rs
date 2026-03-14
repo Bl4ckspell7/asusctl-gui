@@ -173,10 +173,18 @@ impl AsusctlGuiWindow {
         // Connect sidebar activation to stack page switching
         let stack_clone = stack.clone();
         let settings_clone = settings.clone();
-        sidebar.connect_activated(move |_sidebar, index| {
+        sidebar.connect_activated(move |sidebar, index| {
             if let Some(page) = Page::from_index(index) {
                 stack_clone.set_visible_child_name(page.as_str());
                 let _ = settings_clone.set_string("last-page", page.as_str());
+
+                // When collapsed, navigate to the content pane
+                if let Some(split_view) = sidebar
+                    .ancestor(adw::NavigationSplitView::static_type())
+                    .and_then(|w| w.downcast::<adw::NavigationSplitView>().ok())
+                {
+                    split_view.set_show_content(true);
+                }
             }
         });
 
@@ -252,6 +260,16 @@ impl AsusctlGuiWindow {
             .min_sidebar_width(200.0)
             .max_sidebar_width(300.0)
             .build();
+
+        // Collapse sidebar on narrow windows and switch to boxed list mode
+        let breakpoint = adw::Breakpoint::new(adw::BreakpointCondition::new_length(
+            adw::BreakpointConditionLengthType::MaxWidth,
+            500.0,
+            adw::LengthUnit::Sp,
+        ));
+        breakpoint.add_setter(&split_view, "collapsed", Some(&true.to_value()));
+        breakpoint.add_setter(&sidebar, "mode", Some(&adw::SidebarMode::Page.to_value()));
+        self.add_breakpoint(breakpoint);
 
         // Show a loading screen while features are detected in the background
         let loading_header = adw::HeaderBar::builder()
