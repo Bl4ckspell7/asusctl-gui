@@ -43,6 +43,14 @@ See [DEVELOPMENT.md](DEVELOPMENT.md) for building from source, testing, and cove
 
 Portions of this code have been generated with assistance from AI tools. All AI-generated code is reviewed by the maintainer with the same standards applied to any other contribution.
 
-## License
+## License & Trademarks
 
 GPL-3.0
+
+---
+
+ASUS and ROG are trademarks or registered trademarks of ASUSTeK Computer Inc. in the United States and/or other countries.
+
+Reference to any ASUS products, services, processes, or other information and/or use of ASUS trademarks does not constitute or imply endorsement, sponsorship, or recommendation thereof by ASUS.
+
+The use of ROG and ASUS trademarks within this project is only to provide a recognisable identifier to users to enable them to associate that these tools will work with ASUS ROG laptops.
