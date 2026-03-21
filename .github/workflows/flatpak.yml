@@ -13,7 +13,7 @@ jobs:
     flatpak:
         runs-on: ubuntu-latest
         container:
-            image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-49
+            image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-49@sha256:1d4e1e4eb4dac3539bd048e419845d15f9f8ab310c0932613e4f6ff99aaa9326
             options: --privileged
 
         steps:
