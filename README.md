@@ -39,9 +39,9 @@ flatpak run com.github.bl4ckspell7.asusctl-gui
 
 See [DEVELOPMENT.md](DEVELOPMENT.md) for building from source, testing, and coverage instructions.
 
-## Acknowledgements
+## AI Disclaimer
 
-This project was developed with assistance from Claude AI.
+Portions of this code have been generated with assistance from AI tools. All AI-generated code is reviewed by the maintainer with the same standards applied to any other contribution.
 
 ## License
 
