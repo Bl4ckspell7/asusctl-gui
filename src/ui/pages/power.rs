@@ -256,6 +256,7 @@ impl PowerPage {
                 .width_request(200)
                 .valign(gtk4::Align::Center)
                 .draw_value(true)
+                .digits(0)
                 .build();
 
             // Connect charge scale to set charge limit
