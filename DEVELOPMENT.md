@@ -19,6 +19,18 @@ cp resources/com.github.bl4ckspell7.asusctl-gui.gschema.xml ~/.local/share/glib-
 glib-compile-schemas ~/.local/share/glib-2.0/schemas/
 ```
 
+### Update dependencies
+
+```bash
+cargo update
+```
+
+### Upgrade dependencies
+
+```bash
+cargo upgrade -i
+```
+
 ### Run
 
 ```bash
