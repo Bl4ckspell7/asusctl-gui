@@ -12,7 +12,7 @@ use std::time::Duration;
 const DEFAULT_WIDTH: i32 = 840;
 const DEFAULT_HEIGHT: i32 = 540;
 const MIN_WIDTH: i32 = 420;
-const MIN_HEIGHT: i32 = 140;
+const MIN_HEIGHT: i32 = 314;
 const SIDEBAR_COLLAPSE_WIDTH: f64 = 620.0;
 
 use super::{
