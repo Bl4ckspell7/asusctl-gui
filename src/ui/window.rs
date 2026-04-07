@@ -11,6 +11,9 @@ use std::time::Duration;
 
 const DEFAULT_WIDTH: i32 = 840;
 const DEFAULT_HEIGHT: i32 = 540;
+const MIN_WIDTH: i32 = 420;
+const MIN_HEIGHT: i32 = 140;
+const SIDEBAR_COLLAPSE_WIDTH: f64 = 620.0;
 
 use super::{
     AboutPage, AuraPage, Page, PowerPage, PreferencesDialog, Refreshable, SlashPage, ThemeSwitcher,
@@ -66,12 +69,14 @@ glib::wrapper! {
 
 impl AsusctlGuiWindow {
     pub fn new(app: &adw::Application) -> Self {
-        glib::Object::builder()
+        let window: Self = glib::Object::builder()
             .property("application", app)
             .property("title", APP_NAME)
             .property("default-width", DEFAULT_WIDTH)
             .property("default-height", DEFAULT_HEIGHT)
-            .build()
+            .build();
+        window.set_size_request(MIN_WIDTH, MIN_HEIGHT);
+        window
     }
 
     /// Start a periodic timer that refreshes the visible page
@@ -264,7 +269,7 @@ impl AsusctlGuiWindow {
         // Collapse sidebar on narrow windows and switch to boxed list mode
         let breakpoint = adw::Breakpoint::new(adw::BreakpointCondition::new_length(
             adw::BreakpointConditionLengthType::MaxWidth,
-            500.0,
+            SIDEBAR_COLLAPSE_WIDTH,
             adw::LengthUnit::Sp,
         ));
         breakpoint.add_setter(&split_view, "collapsed", Some(&true.to_value()));
