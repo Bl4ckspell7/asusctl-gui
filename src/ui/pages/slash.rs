@@ -173,7 +173,7 @@ impl SlashPage {
         let brightness_scale = gtk4::Scale::builder()
             .orientation(gtk4::Orientation::Horizontal)
             .adjustment(&gtk4::Adjustment::new(128.0, 0.0, 255.0, 1.0, 10.0, 0.0))
-            .width_request(200)
+            .hexpand(true)
             .valign(gtk4::Align::Center)
             .draw_value(true)
             .build();

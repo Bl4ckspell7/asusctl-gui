@@ -11,6 +11,9 @@ use std::time::Duration;
 
 const DEFAULT_WIDTH: i32 = 840;
 const DEFAULT_HEIGHT: i32 = 540;
+const MIN_WIDTH: i32 = 420;
+const MIN_HEIGHT: i32 = 314;
+const SIDEBAR_COLLAPSE_WIDTH: f64 = 620.0;
 
 use super::{
     AboutPage, AuraPage, Page, PowerPage, PreferencesDialog, Refreshable, SlashPage, ThemeSwitcher,
@@ -25,7 +28,7 @@ mod imp {
     pub struct AsusctlGuiWindow {
         pub split_view: RefCell<Option<adw::NavigationSplitView>>,
         pub stack: RefCell<Option<gtk4::Stack>>,
-        pub sidebar_list: RefCell<Option<gtk4::ListBox>>,
+        pub sidebar: RefCell<Option<adw::Sidebar>>,
         pub settings: RefCell<Option<gio::Settings>>,
         // Store direct references to pages for refresh
         pub about_page: RefCell<Option<AboutPage>>,
@@ -66,12 +69,14 @@ glib::wrapper! {
 
 impl AsusctlGuiWindow {
     pub fn new(app: &adw::Application) -> Self {
-        glib::Object::builder()
+        let window: Self = glib::Object::builder()
             .property("application", app)
             .property("title", APP_NAME)
             .property("default-width", DEFAULT_WIDTH)
             .property("default-height", DEFAULT_HEIGHT)
-            .build()
+            .build();
+        window.set_size_request(MIN_WIDTH, MIN_HEIGHT);
+        window
     }
 
     /// Start a periodic timer that refreshes the visible page
@@ -156,36 +161,37 @@ impl AsusctlGuiWindow {
             .vhomogeneous(false)
             .build();
 
-        // Create sidebar with navigation items
-        let sidebar_list = gtk4::ListBox::builder()
-            .selection_mode(gtk4::SelectionMode::Single)
-            .css_classes(["navigation-sidebar"])
-            .build();
+        // Create sidebar with navigation items using adw::Sidebar
+        let sidebar = adw::Sidebar::new();
+        let section = adw::SidebarSection::new();
 
-        // Add navigation rows using Page enum
         for page in Page::ALL {
-            let row = Self::create_nav_row(page);
-            sidebar_list.append(&row);
+            let item = adw::SidebarItem::builder()
+                .title(page.title())
+                .icon_name(page.icon())
+                .build();
+            section.append(item);
         }
 
-        // Connect row selection to stack page switching
+        sidebar.append(section);
+
+        // Connect sidebar activation to stack page switching
         let stack_clone = stack.clone();
         let settings_clone = settings.clone();
-        sidebar_list.connect_row_selected(move |_, row| {
-            if let Some(row) = row {
-                if let Some(name) = row.widget_name().as_str().strip_prefix("nav-") {
-                    stack_clone.set_visible_child_name(name);
-                    let _ = settings_clone.set_string("last-page", name);
+        sidebar.connect_activated(move |sidebar, index| {
+            if let Some(page) = Page::from_index(index) {
+                stack_clone.set_visible_child_name(page.as_str());
+                let _ = settings_clone.set_string("last-page", page.as_str());
+
+                // When collapsed, navigate to the content pane
+                if let Some(split_view) = sidebar
+                    .ancestor(adw::NavigationSplitView::static_type())
+                    .and_then(|w| w.downcast::<adw::NavigationSplitView>().ok())
+                {
+                    split_view.set_show_content(true);
                 }
             }
         });
-
-        // Wrap sidebar in a scrolled window
-        let sidebar_scroll = gtk4::ScrolledWindow::builder()
-            .hscrollbar_policy(gtk4::PolicyType::Never)
-            .vexpand(true)
-            .child(&sidebar_list)
-            .build();
 
         // Create hamburger menu
         let menu = gio::Menu::new();
@@ -231,7 +237,7 @@ impl AsusctlGuiWindow {
 
         let sidebar_toolbar = adw::ToolbarView::new();
         sidebar_toolbar.add_top_bar(&sidebar_header);
-        sidebar_toolbar.set_content(Some(&sidebar_scroll));
+        sidebar_toolbar.set_content(Some(&sidebar));
 
         // Create sidebar navigation page
         let sidebar_page = adw::NavigationPage::builder()
@@ -260,6 +266,16 @@ impl AsusctlGuiWindow {
             .max_sidebar_width(300.0)
             .build();
 
+        // Collapse sidebar on narrow windows and switch to boxed list mode
+        let breakpoint = adw::Breakpoint::new(adw::BreakpointCondition::new_length(
+            adw::BreakpointConditionLengthType::MaxWidth,
+            SIDEBAR_COLLAPSE_WIDTH,
+            adw::LengthUnit::Sp,
+        ));
+        breakpoint.add_setter(&split_view, "collapsed", Some(&true.to_value()));
+        breakpoint.add_setter(&sidebar, "mode", Some(&adw::SidebarMode::Page.to_value()));
+        self.add_breakpoint(breakpoint);
+
         // Show a loading screen while features are detected in the background
         let loading_header = adw::HeaderBar::builder()
             .title_widget(&gtk4::Label::new(Some(APP_NAME)))
@@ -282,7 +298,7 @@ impl AsusctlGuiWindow {
         // Store references (split view swapped in once loading finishes)
         imp.split_view.replace(Some(split_view));
         imp.stack.replace(Some(stack));
-        imp.sidebar_list.replace(Some(sidebar_list));
+        imp.sidebar.replace(Some(sidebar));
         imp.settings.replace(Some(settings.clone()));
 
         // Start refresh timer with interval from settings (in seconds)
@@ -378,11 +394,9 @@ impl AsusctlGuiWindow {
         // Set initial page
         stack.set_visible_child_name(startup_page.as_str());
 
-        // Select corresponding sidebar row
-        if let Some(sidebar_list) = imp.sidebar_list.borrow().as_ref() {
-            if let Some(row) = sidebar_list.row_at_index(startup_page.index() as i32) {
-                sidebar_list.select_row(Some(&row));
-            }
+        // Select corresponding sidebar item
+        if let Some(sidebar) = imp.sidebar.borrow().as_ref() {
+            sidebar.set_selected(startup_page.index());
         }
     }
 
@@ -453,31 +467,5 @@ impl AsusctlGuiWindow {
 
         shortcuts.add(section);
         shortcuts.present(Some(self));
-    }
-
-    fn create_nav_row(page: Page) -> gtk4::ListBoxRow {
-        let hbox = gtk4::Box::builder()
-            .orientation(gtk4::Orientation::Horizontal)
-            .spacing(12)
-            .margin_top(12)
-            .margin_bottom(12)
-            .margin_start(12)
-            .margin_end(12)
-            .build();
-
-        let icon = gtk4::Image::from_icon_name(page.icon());
-        let label = gtk4::Label::builder()
-            .label(page.title())
-            .halign(gtk4::Align::Start)
-            .hexpand(true)
-            .build();
-
-        hbox.append(&icon);
-        hbox.append(&label);
-
-        gtk4::ListBoxRow::builder()
-            .child(&hbox)
-            .name(format!("nav-{}", page.as_str()))
-            .build()
     }
 }
