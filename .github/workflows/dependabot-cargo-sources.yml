@@ -4,7 +4,7 @@ permissions:
     contents: write
 
 on:
-    pull_request:
+    pull_request_target:
         paths:
             - "Cargo.lock"
 
@@ -18,7 +18,6 @@ jobs:
               uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
               with:
                   ref: ${{ github.head_ref }}
-                  persist-credentials: false
 
             - name: Install uv
               uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
@@ -26,14 +25,27 @@ jobs:
             - name: Install flatpak-cargo-generator
               run: uv tool install flatpak-cargo-generator
 
+            - name: Refresh transitive deps for bumped crates
+              env:
+                  BASE_SHA: ${{ github.event.pull_request.base.sha }}
+              run: |
+                  bumped=$(git diff "$BASE_SHA" HEAD -- Cargo.lock \
+                      | grep -E '^\+name = "' \
+                      | sed -E 's/.*"([^"]+)".*/\1/' \
+                      | sort -u)
+                  [ -z "$bumped" ] && exit 0
+                  args=""
+                  for c in $bumped; do args="$args -p $c"; done
+                  cargo update $args
+
             - name: Regenerate cargo-sources.json
               run: flatpak-cargo-generator Cargo.lock -o cargo-sources.json
 
             - name: Commit and push if changed
               run: |
-                  git diff --quiet cargo-sources.json && exit 0
+                  git diff --quiet Cargo.lock cargo-sources.json && exit 0
                   git config user.name "github-actions[bot]"
                   git config user.email "github-actions[bot]@users.noreply.github.com"
-                  git add cargo-sources.json
-                  git commit -m "fix: regenerate cargo-sources.json for updated Cargo.lock"
+                  git add Cargo.lock cargo-sources.json
+                  git commit -m "fix: refresh Cargo.lock and cargo-sources.json"
                   git push
