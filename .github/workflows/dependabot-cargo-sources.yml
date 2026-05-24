@@ -36,7 +36,7 @@ jobs:
                   [ -z "$bumped" ] && exit 0
                   args=""
                   for c in $bumped; do args="$args -p $c"; done
-                  cargo update $args
+                  cargo update --recursive $args
 
             - name: Regenerate cargo-sources.json
               run: flatpak-cargo-generator Cargo.lock -o cargo-sources.json
