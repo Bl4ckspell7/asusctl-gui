@@ -54,16 +54,28 @@ pub fn run_asusctl(args: &[&str]) -> Result<String> {
     })?;
 
     let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    interpret_asusctl_output(output.status.success(), stdout, &stderr)
+}
 
-    // Check for common error patterns
+/// Classify an asusctl invocation's result. Separated from process spawning so
+/// the logic is unit-testable.
+///
+/// - stderr mentioning the service / a refused connection -> `ServiceNotRunning`
+///   (asusctl is present but `asusd` is unreachable).
+/// - non-zero exit with empty stdout -> `NotInstalled`. Under
+///   `flatpak-spawn --host` a missing host `asusctl` exits 127 with empty
+///   stdout (flatpak-spawn itself runs, so it is not caught as a NotFound
+///   spawn error). asusctl often exits non-zero *with* useful stdout, so only
+///   the empty-output failure is treated as missing.
+/// - otherwise -> stdout as-is.
+fn interpret_asusctl_output(success: bool, stdout: String, stderr: &str) -> Result<String> {
     if stderr.contains("Connection refused") || stderr.contains("asusd") {
         return Err(AsusctlError::ServiceNotRunning);
     }
-
-    // Note: asusctl often returns non-zero but still provides useful output
-    let _ = output.status.success();
-
+    if !success && stdout.trim().is_empty() {
+        return Err(AsusctlError::NotInstalled);
+    }
     Ok(stdout)
 }
 
@@ -266,3 +278,7 @@ pub fn has_armoury_interface() -> bool {
 
     false
 }
+
+#[cfg(test)]
+#[path = "tests/dbus_tests.rs"]
+mod tests;
