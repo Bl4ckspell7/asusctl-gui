@@ -34,6 +34,12 @@
     <content_rating type="oars-1.1" />
 
     <releases>
+        <release version="0.1.0" date="2026-06-02">
+            <url type="details">https://github.com/Bl4ckspell7/asusctl-gui/releases/tag/v0.1.0</url>
+            <description>
+                <p>See the release notes.</p>
+            </description>
+        </release>
         <release version="0.1.0" date="2025-01-01">
             <description>
                 <p>Initial release.</p>
