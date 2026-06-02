@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.1] - 2026-06-02
+
+### Bug Fixes
+
+- *(backend)* Detect missing asusctl under Flatpak
+- *(flatpak)* Build on the stable branch
+
+### Documentation
+
+- *(readme)* Point install to GitHub releases
+- Correct DEVELOPMENT.md prerequisite versions
 ## [0.1.0] - 2026-06-02
 
 ### Features
