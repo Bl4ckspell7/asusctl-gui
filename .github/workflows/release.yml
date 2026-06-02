@@ -1,0 +1,127 @@
+name: Release
+
+permissions:
+  contents: read
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Version bump (auto = derive from Conventional Commits)"
+        type: choice
+        default: auto
+        options:
+          - auto
+          - patch
+          - minor
+          - major
+      dry_run:
+        description: "Dry run: compute version + notes only (no commit/tag/release)"
+        type: boolean
+        default: true
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-50@sha256:9b485ec99dd7a32966475e88e23add82e74162987e662dd0dcaaf26cdbb3de20
+      options: --privileged
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Mark workspace safe for git
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          enable-cache: false
+
+      - name: Install git-cliff
+        env:
+          UV_TOOL_BIN_DIR: /usr/local/bin
+        run: |
+          uv tool install 'git-cliff==2.13.1'
+          git-cliff --version
+
+      - name: Compute version
+        id: ver
+        env:
+          BUMP: ${{ inputs.bump }}
+        run: |
+          set -euo pipefail
+          version="$(bash scripts/release/bump.sh compute "$BUMP")"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Computed version: v$version"
+
+      - name: Preview release (dry run)
+        if: ${{ inputs.dry_run }}
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          {
+            echo "## Dry run — would release \`v${VERSION}\`"
+            echo
+            echo '```markdown'
+            git cliff --tag "v${VERSION}" --unreleased --strip all || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Apply version bump
+        if: ${{ ! inputs.dry_run }}
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+          RELEASE_NOTES: ${{ runner.temp }}/release-notes.md
+        run: bash scripts/release/bump.sh apply "$VERSION"
+
+      - name: Build Flatpak bundle
+        if: ${{ ! inputs.dry_run }}
+        uses: flatpak/flatpak-github-actions/flatpak-builder@401fe28a8384095fc1531b9d320b292f0ee45adb # v6.7
+        with:
+          manifest-path: com.github.bl4ckspell7.asusctl-gui.yml
+          bundle: asusctl-gui.flatpak
+          upload-artifact: false
+
+      - name: Generate checksums
+        if: ${{ ! inputs.dry_run }}
+        run: sha256sum asusctl-gui.flatpak > SHA256SUMS.txt
+
+      - name: Commit, tag and push
+        if: ${{ ! inputs.dry_run }}
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git add Cargo.toml Cargo.lock CHANGELOG.md data/com.github.bl4ckspell7.asusctl-gui.metainfo.xml
+          git commit -m "chore(release): v${VERSION}"
+          git tag "v${VERSION}"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+          git push origin "v${VERSION}"
+
+      - name: Create draft release
+        if: ${{ ! inputs.dry_run }}
+        # zizmor: ignore[superfluous-actions] — `gh` CLI is not in the flatpak container; this action runs via runner-injected node
+        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3.0.0
+        with:
+          draft: true
+          tag_name: v${{ steps.ver.outputs.version }}
+          body_path: ${{ runner.temp }}/release-notes.md
+          generate_release_notes: false
+          files: |
+            asusctl-gui.flatpak
+            SHA256SUMS.txt
