@@ -3,7 +3,7 @@
 [![Rust](https://github.com/Bl4ckspell7/asusctl-gui/actions/workflows/rust.yml/badge.svg)](https://github.com/Bl4ckspell7/asusctl-gui/actions/workflows/rust.yml)
 [![Flatpak](https://github.com/Bl4ckspell7/asusctl-gui/actions/workflows/flatpak.yml/badge.svg)](https://github.com/Bl4ckspell7/asusctl-gui/actions/workflows/flatpak.yml)
 
-A GTK4/Libadwaita GUI for [asusctl](https://gitlab.com/asus-linux/asusctl) - manage your ASUS ROG laptop settings.
+A GTK4/Libadwaita GUI for [asusctl](https://github.com/OpenGamingCollective/asusctl) - manage your ASUS ROG laptop settings.
 
 ## Features
 
@@ -24,7 +24,7 @@ A GTK4/Libadwaita GUI for [asusctl](https://gitlab.com/asus-linux/asusctl) - man
 
 ## Requirements
 
-- [`asusctl`](https://gitlab.com/asus-linux/asusctl) installed and configured
+- [`asusctl`](https://github.com/OpenGamingCollective/asusctl) installed and configured
 
 ## Installation
 
