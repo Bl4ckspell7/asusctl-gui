@@ -126,6 +126,7 @@ Releases are cut by the **Release** workflow (`.github/workflows/release.yml`) �
    - `patch` / `minor` / `major` — force a level.
 
    Leave **`dry_run` checked** the first time.
+
 2. **Review the dry-run job summary** — it prints the computed version and release notes without changing anything.
 3. **Re-run with `dry_run` unchecked.** The workflow bumps the version (`Cargo.toml`, `Cargo.lock`, metainfo), updates `CHANGELOG.md`, builds the Flatpak bundle, commits + tags `vX.Y.Z`, and opens a **draft** GitHub Release with the bundle + `SHA256SUMS.txt`.
 4. **Review the draft, then publish it.** Publishing locks the tag and assets ([immutable releases](https://docs.github.com/en/code-security/concepts/supply-chain-security/immutable-releases)) and generates a build attestation.
