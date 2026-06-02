@@ -91,6 +91,7 @@ jobs:
         with:
           manifest-path: com.github.bl4ckspell7.asusctl-gui.yml
           bundle: asusctl-gui.flatpak
+          branch: stable
           upload-artifact: false
 
       - name: Generate checksums
