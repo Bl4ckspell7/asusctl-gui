@@ -28,12 +28,14 @@ A GTK4/Libadwaita GUI for [asusctl](https://gitlab.com/asus-linux/asusctl) - man
 
 ## Installation
 
-Download the latest `asusctl-gui-x86_64.flatpak` artifact from [GitHub Actions](https://github.com/Bl4ckspell7/asusctl-gui/actions/workflows/flatpak.yml), then install:
+Download `asusctl-gui.flatpak` from the [latest release](https://github.com/Bl4ckspell7/asusctl-gui/releases/latest) and install it:
 
 ```bash
 flatpak install --user ./asusctl-gui.flatpak
 flatpak run com.github.bl4ckspell7.asusctl-gui
 ```
+
+Optionally, verify the download against `SHA256SUMS.txt` from the same release with `sha256sum -c SHA256SUMS.txt`.
 
 ## Development
 
