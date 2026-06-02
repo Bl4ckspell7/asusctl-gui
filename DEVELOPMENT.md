@@ -116,3 +116,28 @@ Generate text summary:
 ```bash
 cargo llvm-cov
 ```
+
+## Releasing
+
+Releases are cut by the **Release** workflow (`.github/workflows/release.yml`) — triggered manually, never on push. Commit messages must follow [Conventional Commits](https://www.conventionalcommits.org); the version bump and changelog are derived from them.
+
+1. **Actions → Release → Run workflow**, and pick the bump:
+   - `auto` (default) — derived from commits since the last tag (`feat` → minor, `fix` → patch, breaking → major).
+   - `patch` / `minor` / `major` — force a level.
+
+   Leave **`dry_run` checked** the first time.
+
+2. **Review the dry-run job summary** — it prints the computed version and release notes without changing anything.
+3. **Re-run with `dry_run` unchecked.** The workflow bumps the version (`Cargo.toml`, `Cargo.lock`, metainfo), updates `CHANGELOG.md`, builds the Flatpak bundle, commits + tags `vX.Y.Z`, and opens a **draft** GitHub Release with the bundle + `SHA256SUMS.txt`.
+4. **Review the draft, then publish it.** Publishing locks the tag and assets ([immutable releases](https://docs.github.com/en/code-security/concepts/supply-chain-security/immutable-releases)) and generates a build attestation.
+
+### Preview locally (optional)
+
+```bash
+uv tool install git-cliff
+```
+
+```bash
+git cliff --bumped-version   # next version
+git cliff --unreleased       # notes for the upcoming release
+```
