@@ -117,7 +117,7 @@ jobs:
       - name: Create draft release
         if: ${{ ! inputs.dry_run }}
         # zizmor: ignore[superfluous-actions] — `gh` CLI is not in the flatpak container; this action runs via runner-injected node
-        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3.0.0
+        uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3.0.1
         with:
           draft: true
           tag_name: v${{ steps.ver.outputs.version }}
