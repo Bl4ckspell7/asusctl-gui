@@ -63,7 +63,7 @@ dependencies = [
 
 [[package]]
 name = "asusctl-gui"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "env_logger",
  "glib-build-tools",

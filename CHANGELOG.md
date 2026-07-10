@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.2] - 2026-07-10
+
+### Bug Fixes
+
+- Refresh Cargo.lock and cargo-sources.json
+
+### Documentation
+
+- *(readme)* Update asusctl links to GitHub
 ## [0.1.1] - 2026-06-02
 
 ### Bug Fixes
