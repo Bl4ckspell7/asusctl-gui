@@ -16,7 +16,7 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
-    container: archlinux:latest
+    container: docker.io/library/archlinux:base-20260719.0.558177@sha256:592e11bd99ab579f933a0cb77a8f66e2f3ae57f5eafacf13aea44a6e98ef21ae
 
     steps:
       - name: Cache pacman packages
