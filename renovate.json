@@ -1,0 +1,42 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended", "docker:pinDigests"],
+  "enabledManagers": ["cargo", "github-actions", "custom.regex"],
+  "minimumReleaseAge": "5 days",
+  "minimumReleaseAgeBehaviour": "timestamp-optional",
+  "dependencyDashboard": true,
+  "prConcurrentLimit": 0,
+  "prHourlyLimit": 0,
+  "lockFileMaintenance": {
+    "enabled": true
+  },
+  "postUpgradeTasks": {
+    "commands": ["bash scripts/regen-cargo-sources.sh"],
+    "fileFilters": ["cargo-sources.json", "Cargo.lock"],
+    "executionMode": "branch"
+  },
+  "customManagers": [
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/(^|/)regen-cargo-sources\\.sh$/"],
+      "matchStrings": ["install-tool python (?<currentValue>\\d+\\.\\d+\\.\\d+)"],
+      "datasourceTemplate": "python-version",
+      "depNameTemplate": "python"
+    }
+  ],
+  "packageRules": [
+    {
+      "matchUpdateTypes": ["major"],
+      "dependencyDashboardApproval": true
+    },
+    {
+      "matchUpdateTypes": ["digest"],
+      "schedule": ["* 13-15 * * 1"]
+    },
+    {
+      "matchManagers": ["cargo"],
+      "matchPackageNames": ["gtk4", "libadwaita", "glib-build-tools"],
+      "groupName": "gtk-rs"
+    }
+  ]
+}
