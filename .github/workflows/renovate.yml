@@ -42,6 +42,8 @@ jobs:
         with:
           configurationFile: renovate.json
           token: ${{ secrets.GITHUB_TOKEN }}
+          # renovate: datasource=docker depName=ghcr.io/renovatebot/renovate
+          renovate-version: 43.278.3@sha256:8aa63d0b2a0ec65cc7a01d1584faab39a90046f0f840af28e98ae295dc12cd75
         env:
           RENOVATE_ALLOWED_COMMANDS: '["^bash scripts/regen-cargo-sources\\.sh$"]'
           LOG_LEVEL: ${{ inputs.logLevel || 'info' }}
