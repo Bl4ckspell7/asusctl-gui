@@ -1,4 +1,5 @@
 use adw::prelude::*;
+use gtk4::gio;
 use gtk4::glib;
 use gtk4::prelude::*;
 use gtk4::subclass::prelude::*;
@@ -7,6 +8,13 @@ use std::cell::RefCell;
 
 use crate::backend;
 use crate::ui::Refreshable;
+
+/// Placeholder shown for the serial number until the user reveals it.
+const SERIAL_HIDDEN: &str = "[ Hidden ]";
+/// Shown while the polkit prompt is open.
+const SERIAL_PENDING: &str = "Requesting permission...";
+/// Shown when the firmware has no serial to reveal.
+const SERIAL_MISSING: &str = "Not set";
 
 mod imp {
     use super::*;
@@ -82,6 +90,17 @@ impl AboutPage {
             .subtitle("Loading...")
             .build();
 
+        // DMI values are static for the boot, so they are read once here rather
+        // than on every refresh.
+        let dmi = backend::get_dmi_info();
+
+        let board_vendor_row = adw::ActionRow::builder()
+            .title("Board Vendor")
+            .subtitle(Self::or_unknown(&dmi.board_vendor))
+            .build();
+
+        let serial_row = Self::build_serial_row();
+
         let asusctl_row = adw::ActionRow::builder()
             .title("asusctl Version")
             .subtitle("Loading...")
@@ -99,6 +118,8 @@ impl AboutPage {
 
         laptop_group.add(&model_row);
         laptop_group.add(&driver_row);
+        laptop_group.add(&board_vendor_row);
+        laptop_group.add(&serial_row);
         laptop_group.add(&asusctl_row);
         laptop_group.add(&distro_row);
         laptop_group.add(&kernel_row);
@@ -109,6 +130,24 @@ impl AboutPage {
         imp.asusctl_row.replace(Some(asusctl_row));
 
         self.append(&laptop_group);
+
+        // Firmware group
+        let firmware_group = adw::PreferencesGroup::builder().title("Firmware").build();
+
+        let bios_row = adw::ActionRow::builder()
+            .title("BIOS")
+            .subtitle(backend::format_bios(dmi))
+            .build();
+
+        let bios_vendor_row = adw::ActionRow::builder()
+            .title("BIOS Vendor")
+            .subtitle(Self::or_unknown(&dmi.bios_vendor))
+            .build();
+
+        firmware_group.add(&bios_row);
+        firmware_group.add(&bios_vendor_row);
+
+        self.append(&firmware_group);
 
         // Service status group
         let status_group = adw::PreferencesGroup::builder()
@@ -126,6 +165,73 @@ impl AboutPage {
 
         self.append(&status_group);
         self.append(&features_group);
+    }
+
+    /// Fall back to "Unknown" for DMI fields the firmware left empty.
+    fn or_unknown(value: &str) -> &str {
+        if value.is_empty() { "Unknown" } else { value }
+    }
+
+    /// Build the serial number row. The value stays hidden until the user asks
+    /// for it, because `/sys/class/dmi/id/product_serial` is root-only and
+    /// reading it triggers a polkit prompt.
+    fn build_serial_row() -> adw::ActionRow {
+        let row = adw::ActionRow::builder()
+            .title("Serial Number")
+            .subtitle(SERIAL_HIDDEN)
+            .build();
+
+        let button = gtk4::Button::builder()
+            .label("Reveal")
+            .valign(gtk4::Align::Center)
+            .css_classes(["flat"])
+            .build();
+
+        let row_weak = row.downgrade();
+        button.connect_clicked(move |button| {
+            let Some(row) = row_weak.upgrade() else {
+                return;
+            };
+
+            button.set_sensitive(false);
+            row.set_subtitle(SERIAL_PENDING);
+
+            // pkexec blocks until the polkit dialog is answered, so it must not
+            // run on the main loop.
+            let row_weak = row.downgrade();
+            let button_weak = button.downgrade();
+            glib::spawn_future_local(async move {
+                let result = gio::spawn_blocking(backend::read_serial_number).await;
+
+                let Some(row) = row_weak.upgrade() else {
+                    return;
+                };
+
+                let error = match result {
+                    Ok(Ok(serial)) => {
+                        // A firmware without a serial is a final answer, so the
+                        // button goes away either way.
+                        row.set_subtitle(serial.as_deref().unwrap_or(SERIAL_MISSING));
+                        if let Some(button) = button_weak.upgrade() {
+                            button.set_visible(false);
+                        }
+                        return;
+                    }
+                    Ok(Err(e)) => e.to_string(),
+                    Err(_) => "the reading thread panicked".to_string(),
+                };
+
+                // Recoverable: the user can dismiss a polkit prompt and retry.
+                log::warn!("Failed to read serial number: {error}");
+                row.set_subtitle(SERIAL_HIDDEN);
+                if let Some(button) = button_weak.upgrade() {
+                    button.set_sensitive(true);
+                }
+            });
+        });
+
+        row.add_suffix(&button);
+        row
     }
 
     /// Refresh/reload all data on this page
