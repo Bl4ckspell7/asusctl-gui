@@ -14,6 +14,7 @@
 //! - [`error`] - Error types and Result alias
 //! - [`types`] - Data structures (enums, structs)
 //! - [`dbus`] - D-Bus communication helpers (internal)
+//! - [`dmi`] - DMI/SMBIOS information from sysfs
 //! - [`system`] - System info and feature detection
 //! - [`aura`] - Keyboard brightness and lighting control
 //! - [`power`] - Power profiles and charge control
@@ -21,6 +22,7 @@
 
 mod aura;
 mod dbus;
+mod dmi;
 mod error;
 mod power;
 mod slash;
@@ -35,6 +37,9 @@ pub use types::{
 
 // Re-export system functions
 pub use system::{detect_features, get_distro, get_kernel_version, get_system_info};
+
+// Re-export DMI functions
+pub use dmi::{format_bios, get_dmi_info, read_serial_number};
 
 // Re-export aura functions
 pub use aura::{

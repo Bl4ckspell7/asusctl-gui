@@ -1,12 +1,25 @@
 use adw::prelude::*;
+use gtk4::gio;
 use gtk4::glib;
 use gtk4::prelude::*;
 use gtk4::subclass::prelude::*;
 use libadwaita as adw;
 use std::cell::RefCell;
+use std::time::Duration;
 
 use crate::backend;
 use crate::ui::Refreshable;
+
+/// Placeholder shown for the serial number until the user reveals it.
+const SERIAL_HIDDEN: &str = "[ Hidden ]";
+/// Shown while the polkit prompt is open.
+const SERIAL_PENDING: &str = "Requesting permission...";
+/// Shown when the firmware has no serial to reveal.
+const SERIAL_MISSING: &str = "Not set";
+const COPY_ICON: &str = "edit-copy-symbolic";
+const COPY_DONE_ICON: &str = "object-select-symbolic";
+/// How long the copy button shows the checkmark before reverting.
+const COPY_FEEDBACK: Duration = Duration::from_secs(2);
 
 mod imp {
     use super::*;
@@ -82,6 +95,17 @@ impl AboutPage {
             .subtitle("Loading...")
             .build();
 
+        // DMI values are static for the boot, so they are read once here rather
+        // than on every refresh.
+        let dmi = backend::get_dmi_info();
+
+        let board_vendor_row = adw::ActionRow::builder()
+            .title("Board Vendor")
+            .subtitle(Self::or_unknown(&dmi.board_vendor))
+            .build();
+
+        let serial_row = Self::build_serial_row();
+
         let asusctl_row = adw::ActionRow::builder()
             .title("asusctl Version")
             .subtitle("Loading...")
@@ -99,6 +123,8 @@ impl AboutPage {
 
         laptop_group.add(&model_row);
         laptop_group.add(&driver_row);
+        laptop_group.add(&board_vendor_row);
+        laptop_group.add(&serial_row);
         laptop_group.add(&asusctl_row);
         laptop_group.add(&distro_row);
         laptop_group.add(&kernel_row);
@@ -109,6 +135,24 @@ impl AboutPage {
         imp.asusctl_row.replace(Some(asusctl_row));
 
         self.append(&laptop_group);
+
+        // Firmware group
+        let firmware_group = adw::PreferencesGroup::builder().title("Firmware").build();
+
+        let bios_row = adw::ActionRow::builder()
+            .title("BIOS")
+            .subtitle(backend::format_bios(dmi))
+            .build();
+
+        let bios_vendor_row = adw::ActionRow::builder()
+            .title("BIOS Vendor")
+            .subtitle(Self::or_unknown(&dmi.bios_vendor))
+            .build();
+
+        firmware_group.add(&bios_row);
+        firmware_group.add(&bios_vendor_row);
+
+        self.append(&firmware_group);
 
         // Service status group
         let status_group = adw::PreferencesGroup::builder()
@@ -126,6 +170,107 @@ impl AboutPage {
 
         self.append(&status_group);
         self.append(&features_group);
+    }
+
+    /// Fall back to "Unknown" for DMI fields the firmware left empty.
+    fn or_unknown(value: &str) -> &str {
+        if value.is_empty() { "Unknown" } else { value }
+    }
+
+    /// Build the serial number row. The value stays hidden until the user asks
+    /// for it, because `/sys/class/dmi/id/product_serial` is root-only and
+    /// reading it triggers a polkit prompt.
+    fn build_serial_row() -> adw::ActionRow {
+        let row = adw::ActionRow::builder()
+            .title("Serial Number")
+            .subtitle(SERIAL_HIDDEN)
+            .build();
+
+        let button = gtk4::Button::builder()
+            .label("Reveal")
+            .valign(gtk4::Align::Center)
+            .css_classes(["flat"])
+            .build();
+
+        // Only useful once a serial is on screen, so it starts hidden.
+        let copy_button = gtk4::Button::builder()
+            .icon_name(COPY_ICON)
+            .tooltip_text("Copy to clipboard")
+            .valign(gtk4::Align::Center)
+            .visible(false)
+            .css_classes(["flat"])
+            .build();
+
+        let copy_weak = copy_button.downgrade();
+        let row_weak = row.downgrade();
+        button.connect_clicked(move |button| {
+            let Some(row) = row_weak.upgrade() else {
+                return;
+            };
+
+            button.set_sensitive(false);
+            row.set_subtitle(SERIAL_PENDING);
+
+            // pkexec blocks until the polkit dialog is answered, so it must not
+            // run on the main loop.
+            let row_weak = row.downgrade();
+            let button_weak = button.downgrade();
+            let copy_weak = copy_weak.clone();
+            glib::spawn_future_local(async move {
+                let result = gio::spawn_blocking(backend::read_serial_number).await;
+
+                let Some(row) = row_weak.upgrade() else {
+                    return;
+                };
+
+                let error = match result {
+                    Ok(Ok(serial)) => {
+                        // A firmware without a serial is a final answer, so the
+                        // reveal button goes away either way.
+                        row.set_subtitle(serial.as_deref().unwrap_or(SERIAL_MISSING));
+                        if let Some(button) = button_weak.upgrade() {
+                            button.set_visible(false);
+                        }
+                        if let (Some(serial), Some(copy_button)) = (serial, copy_weak.upgrade()) {
+                            Self::arm_copy_button(&copy_button, serial);
+                        }
+                        return;
+                    }
+                    Ok(Err(e)) => e.to_string(),
+                    Err(_) => "the reading thread panicked".to_string(),
+                };
+
+                // Recoverable: the user can dismiss a polkit prompt and retry.
+                log::warn!("Failed to read serial number: {error}");
+                row.set_subtitle(SERIAL_HIDDEN);
+                if let Some(button) = button_weak.upgrade() {
+                    button.set_sensitive(true);
+                }
+            });
+        });
+
+        row.add_suffix(&copy_button);
+        row.add_suffix(&button);
+        row
+    }
+
+    /// Wire the copy button to the revealed serial and show it.
+    ///
+    /// The icon briefly turns into a checkmark as the only available feedback —
+    /// this app has no toast overlay.
+    fn arm_copy_button(copy_button: &gtk4::Button, serial: String) {
+        copy_button.connect_clicked(move |copy_button| {
+            copy_button.clipboard().set_text(&serial);
+            copy_button.set_icon_name(COPY_DONE_ICON);
+
+            let copy_weak = copy_button.downgrade();
+            glib::timeout_add_local_once(COPY_FEEDBACK, move || {
+                if let Some(copy_button) = copy_weak.upgrade() {
+                    copy_button.set_icon_name(COPY_ICON);
+                }
+            });
+        });
+        copy_button.set_visible(true);
     }
 
     /// Refresh/reload all data on this page
