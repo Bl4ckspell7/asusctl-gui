@@ -478,6 +478,17 @@ pub struct SystemInfo {
     pub board_name: String,
 }
 
+/// World-readable DMI/SMBIOS fields from `/sys/class/dmi/id`.
+///
+/// Empty values mean the field was unreadable or held OEM placeholder text.
+#[derive(Debug, Clone, Default)]
+pub struct DmiInfo {
+    pub bios_version: String,
+    pub bios_date: String,
+    pub bios_vendor: String,
+    pub board_vendor: String,
+}
+
 #[cfg(test)]
 #[path = "tests/types_tests.rs"]
 mod tests;
