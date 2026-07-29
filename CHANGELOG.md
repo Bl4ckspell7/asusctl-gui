@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.0] - 2026-07-29
+
+### Features
+
+- *(renovate)* Add config and cargo-sources postUpgradeTask
+- *(backend)* Read DMI info from sysfs
+- *(about)* Show BIOS, vendors and serial number
+- *(about)* Add copy button for revealed serial
 ## [0.1.2] - 2026-07-10
 
 ### Bug Fixes
