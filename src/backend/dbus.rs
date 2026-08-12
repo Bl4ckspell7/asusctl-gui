@@ -61,8 +61,10 @@ pub fn run_asusctl(args: &[&str]) -> Result<String> {
 /// Classify an asusctl invocation's result. Separated from process spawning so
 /// the logic is unit-testable.
 ///
-/// - stderr mentioning the service / a refused connection -> `ServiceNotRunning`
-///   (asusctl is present but `asusd` is unreachable).
+/// - failure whose stderr shows `asusd` is unreachable -> `ServiceNotRunning`
+///   (asusctl is present but the daemon is down). See
+///   [`stderr_reports_service_down`] — a bare mention of the daemon does not
+///   qualify, and a successful run is never reclassified.
 /// - non-zero exit with empty stdout -> `NotInstalled`. Under
 ///   `flatpak-spawn --host` a missing host `asusctl` exits 127 with empty
 ///   stdout (flatpak-spawn itself runs, so it is not caught as a NotFound
@@ -70,13 +72,63 @@ pub fn run_asusctl(args: &[&str]) -> Result<String> {
 ///   the empty-output failure is treated as missing.
 /// - otherwise -> stdout as-is.
 fn interpret_asusctl_output(success: bool, stdout: String, stderr: &str) -> Result<String> {
-    if stderr.contains("Connection refused") || stderr.contains("asusd") {
+    if !success && stderr_reports_service_down(stderr) {
         return Err(AsusctlError::ServiceNotRunning);
     }
     if !success && stdout.trim().is_empty() {
         return Err(AsusctlError::NotInstalled);
     }
     Ok(stdout)
+}
+
+/// Messages that mean the daemon is unreachable, whoever produced them.
+///
+/// The two bus implementations word an unowned name differently: dbus-daemon
+/// says "was not provided by any .service files", dbus-broker (the Arch/Fedora
+/// default) says "is not activatable". The last two entries are asusctl's own
+/// prose, which it prints instead of the raw D-Bus error.
+const SERVICE_DOWN_MARKERS: &[&str] = &[
+    "connection refused",
+    "was not provided by any .service files",
+    "is not activatable",
+    "was not owned by anyone",
+    "org.freedesktop.dbus.error.serviceunknown",
+    "name has no owner",
+    "failed to connect to bus",
+    "could not get asusd version",
+    "asusd.service running",
+];
+
+/// Failure verbs that only mean "service down" when paired with `asusd`.
+const CONNECT_FAILURE_VERBS: &[&str] = &[
+    "failed to connect",
+    "could not connect",
+    "unable to connect",
+    "cannot connect",
+    "not running",
+];
+
+/// True when stderr shows `asusd` itself is unreachable, as opposed to a
+/// request the live daemon rejected.
+///
+/// A bare mention of "asusd" is not enough — warnings routinely name the daemon
+/// while it is running fine. Likewise `No such property` / `no such interface`
+/// come back from a *live* service that simply lacks that member, so they are
+/// deliberately not matched here.
+fn stderr_reports_service_down(stderr: &str) -> bool {
+    let lowered = stderr.to_lowercase();
+
+    if SERVICE_DOWN_MARKERS
+        .iter()
+        .any(|marker| lowered.contains(marker))
+    {
+        return true;
+    }
+
+    lowered.contains("asusd")
+        && CONNECT_FAILURE_VERBS
+            .iter()
+            .any(|verb| lowered.contains(verb))
 }
 
 // ============================================================================
@@ -99,7 +151,7 @@ pub fn read_dbus_property_at(path: &str, interface: &str, property: &str) -> Res
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        if stderr.contains("No such") || stderr.contains("not found") {
+        if stderr_reports_service_down(&stderr) {
             return Err(AsusctlError::ServiceNotRunning);
         }
         return Err(AsusctlError::CommandFailed(stderr.to_string()));
