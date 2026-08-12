@@ -29,3 +29,14 @@ jobs:
                   bundle: asusctl-gui.flatpak
                   branch: stable
                   upload-artifact: true
+
+            # Advisory only: these still flag the known sandbox hole
+            # (--talk-name=org.freedesktop.Flatpak) and the missing AppStream
+            # screenshots. Make them blocking once both are addressed.
+            - name: Lint Flatpak manifest
+              continue-on-error: true
+              run: flatpak-builder-lint manifest com.github.bl4ckspell7.asusctl-gui.yml
+
+            - name: Lint Flatpak repo
+              continue-on-error: true
+              run: flatpak-builder-lint repo repo
