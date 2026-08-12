@@ -40,7 +40,17 @@ modules:
       # GSettings schema
       - install -Dm0644 resources/${FLATPAK_ID}.gschema.xml ${FLATPAK_DEST}/share/glib-2.0/schemas/${FLATPAK_ID}.gschema.xml
       - glib-compile-schemas ${FLATPAK_DEST}/share/glib-2.0/schemas/
+      # Validate the installed metadata
+      - desktop-file-validate ${FLATPAK_DEST}/share/applications/${FLATPAK_ID}.desktop
+      - appstreamcli validate --no-net ${FLATPAK_DEST}/share/metainfo/${FLATPAK_ID}.metainfo.xml
     sources:
       - type: dir
         path: .
+        # flatpak-builder ignores .gitignore, so build artefacts would be copied
+        skip:
+          - target
+          - .git
+          - .flatpak-builder
+          - builddir
+          - repo
       - cargo-sources.json
