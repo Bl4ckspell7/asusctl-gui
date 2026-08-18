@@ -1,5 +1,7 @@
 /target
 /.flatpak-builder
+/.flatpak
 /repo
 /builddir
 /.claude/
+/.vscode
