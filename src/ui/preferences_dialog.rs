@@ -135,8 +135,8 @@ impl PreferencesDialog {
 
         // Create refresh interval spin row (0.1-1.0 seconds)
         let refresh_interval_row = adw::SpinRow::builder()
-            .title("Update Interval")
-            .subtitle("In seconds")
+            .title("Refresh Interval")
+            .subtitle("How often the visible page reloads system data, in seconds")
             .adjustment(&gtk4::Adjustment::new(
                 0.5, // default value
                 0.1, // min
