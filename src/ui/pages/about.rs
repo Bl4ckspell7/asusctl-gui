@@ -256,8 +256,8 @@ impl AboutPage {
 
     /// Wire the copy button to the revealed serial and show it.
     ///
-    /// The icon briefly turns into a checkmark as the only available feedback —
-    /// this app has no toast overlay.
+    /// The icon briefly turns into a checkmark to confirm the copy without
+    /// adding a success toast.
     fn arm_copy_button(copy_button: &gtk4::Button, serial: String) {
         copy_button.connect_clicked(move |copy_button| {
             copy_button.clipboard().set_text(&serial);

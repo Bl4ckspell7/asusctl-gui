@@ -29,6 +29,8 @@ mod slash;
 mod system;
 mod types;
 
+pub(crate) use error::AsusctlError;
+
 // Re-export types actually used by UI
 pub use types::{
     AuraDirection, AuraMode, AuraSpeed, KeyboardBrightness, PowerProfile, SlashMode,
