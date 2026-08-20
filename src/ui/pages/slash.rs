@@ -4,7 +4,7 @@ use gtk4::glib::prelude::ObjectExt;
 use gtk4::prelude::*;
 use gtk4::subclass::prelude::*;
 use libadwaita as adw;
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 
 use crate::backend::{self, AsusctlError, SlashMode};
 use crate::ui::{Refreshable, show_backend_error};
@@ -24,6 +24,7 @@ mod imp {
         pub show_on_sleep: RefCell<Option<adw::SwitchRow>>,
         pub show_on_battery: RefCell<Option<adw::SwitchRow>>,
         pub show_battery_warning: RefCell<Option<adw::SwitchRow>>,
+        pub confirmed_enabled: Cell<bool>,
         /// Flag to prevent signal handlers from firing during refresh
         pub refreshing: RefCell<bool>,
     }
@@ -152,10 +153,13 @@ impl SlashPage {
                     scale.set_sensitive(enabled);
                 }
 
-                if let Err(e) = result {
-                    log::error!("Failed to toggle slash: {e}");
-                    show_backend_error(&this, "Couldn’t change Slash lighting", &e);
-                    this.reconcile_enabled_after_write_failure();
+                match result {
+                    Ok(()) => this.imp().confirmed_enabled.set(enabled),
+                    Err(e) => {
+                        log::error!("Failed to toggle slash: {e}");
+                        show_backend_error(&this, "Couldn’t change Slash lighting", &e);
+                        this.reconcile_enabled_after_write_failure();
+                    }
                 }
             });
         }
@@ -397,6 +401,7 @@ impl SlashPage {
     fn apply_enabled_state(&self, enabled: bool) {
         let imp = self.imp();
         *imp.refreshing.borrow_mut() = true;
+        imp.confirmed_enabled.set(enabled);
 
         if let Some(switch) = imp.enable_switch.borrow().as_ref() {
             let _guard = switch.freeze_notify();
@@ -414,6 +419,7 @@ impl SlashPage {
             Ok(enabled) => self.apply_enabled_state(enabled),
             Err(e) => {
                 log::error!("Failed to reconcile Slash enabled state after write failure: {e}");
+                self.apply_enabled_state(self.imp().confirmed_enabled.get());
             }
         }
     }
@@ -573,11 +579,12 @@ impl SlashPage {
                 Ok(enabled) => {
                     let _guard = switch.freeze_notify();
                     switch.set_active(enabled);
+                    imp.confirmed_enabled.set(enabled);
                     enabled
                 }
                 Err(e) => {
                     log::error!("Failed to get slash enabled state: {e}");
-                    false
+                    imp.confirmed_enabled.get()
                 }
             }
         } else {
