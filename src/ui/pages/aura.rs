@@ -29,6 +29,7 @@ mod imp {
         pub zone_dropdown: RefCell<Option<gtk4::DropDown>>,
         pub color_group: RefCell<Option<adw::PreferencesGroup>>,
         pub selected_mode: RefCell<AuraMode>,
+        pub confirmed_mode: Cell<AuraMode>,
         pub last_successful_zone: Cell<u32>,
         pub refreshing: RefCell<bool>,
     }
@@ -97,6 +98,9 @@ impl AuraPage {
         } else {
             features.aura_modes.clone()
         };
+        let initial_mode = supported_modes.first().copied().unwrap_or_default();
+        *imp.selected_mode.borrow_mut() = initial_mode;
+        imp.confirmed_mode.set(initial_mode);
         let supported_zones: Vec<String> = features.aura_zones.clone();
 
         // Page title
@@ -489,7 +493,10 @@ impl AuraPage {
             direction,
             zone.as_deref(),
         ) {
-            Ok(()) => imp.last_successful_zone.set(zone_index),
+            Ok(()) => {
+                imp.confirmed_mode.set(mode);
+                imp.last_successful_zone.set(zone_index);
+            }
             Err(e) => {
                 log::error!("Failed to set aura mode: {e}");
                 show_backend_error(self, "Couldn’t change Aura lighting", &e);
@@ -552,6 +559,7 @@ impl AuraPage {
                     combo.set_selected(index as u32);
                 }
                 *imp.selected_mode.borrow_mut() = mode;
+                imp.confirmed_mode.set(mode);
             }
         }
 
@@ -626,8 +634,29 @@ impl AuraPage {
             ),
             Err(e) => {
                 log::error!("Failed to reconcile Aura lighting after write failure: {e}");
+                self.restore_confirmed_mode();
             }
         }
+    }
+
+    fn restore_confirmed_mode(&self) {
+        let imp = self.imp();
+        let mode = imp.confirmed_mode.get();
+        *imp.refreshing.borrow_mut() = true;
+
+        {
+            let modes = imp.supported_modes.borrow();
+            if let Some(index) = modes.iter().position(|supported| *supported == mode) {
+                if let Some(combo) = imp.mode_combo.borrow().as_ref() {
+                    let _guard = combo.freeze_notify();
+                    combo.set_selected(index as u32);
+                }
+                *imp.selected_mode.borrow_mut() = mode;
+            }
+        }
+
+        self.update_mode_visibility();
+        *imp.refreshing.borrow_mut() = false;
     }
 
     /// Refresh/reload all data on this page
