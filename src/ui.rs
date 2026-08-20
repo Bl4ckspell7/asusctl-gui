@@ -1,12 +1,15 @@
 mod pages;
 mod preferences_dialog;
 mod theme_switcher;
+mod toast;
 mod window;
 
 pub use pages::{AboutPage, AuraPage, PowerPage, SlashPage};
 pub use preferences_dialog::PreferencesDialog;
 pub use theme_switcher::ThemeSwitcher;
 pub use window::AsusctlGuiWindow;
+
+pub(crate) use toast::show_backend_error;
 
 use std::fmt;
 

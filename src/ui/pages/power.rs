@@ -7,7 +7,7 @@ use libadwaita as adw;
 use std::cell::RefCell;
 
 use crate::backend::{self, PowerProfile};
-use crate::ui::Refreshable;
+use crate::ui::{Refreshable, show_backend_error};
 
 mod imp {
     use super::*;
@@ -148,6 +148,8 @@ impl PowerPage {
                 if button.is_active() {
                     if let Err(e) = backend::set_profile(profile_clone) {
                         log::error!("Failed to set profile: {e}");
+                        show_backend_error(&this, "Couldn’t change the power profile", &e);
+                        this.reconcile_profiles_after_write_failure();
                     }
                 }
             });
@@ -193,6 +195,8 @@ impl PowerPage {
                 };
                 if let Err(e) = backend::set_profile_ac(profile) {
                     log::error!("Failed to set AC profile: {e}");
+                    show_backend_error(&this, "Couldn’t change the AC power profile", &e);
+                    this.reconcile_profiles_after_write_failure();
                 }
             });
         }
@@ -231,6 +235,8 @@ impl PowerPage {
                 };
                 if let Err(e) = backend::set_profile_battery(profile) {
                     log::error!("Failed to set battery profile: {e}");
+                    show_backend_error(&this, "Couldn’t change the battery power profile", &e);
+                    this.reconcile_profiles_after_write_failure();
                 }
             });
         }
@@ -269,6 +275,8 @@ impl PowerPage {
                     let value = scale.value() as u8;
                     if let Err(e) = backend::set_charge_limit(value) {
                         log::error!("Failed to set charge limit: {e}");
+                        show_backend_error(&this, "Couldn’t change the charge limit", &e);
+                        this.reconcile_charge_limit_after_write_failure();
                     }
                 });
             }
@@ -281,6 +289,82 @@ impl PowerPage {
         }
     }
 
+    fn apply_profile_state(
+        &self,
+        active: PowerProfile,
+        on_ac: PowerProfile,
+        on_battery: PowerProfile,
+    ) {
+        let imp = self.imp();
+        *imp.refreshing.borrow_mut() = true;
+
+        {
+            let radios = imp.profile_radios.borrow();
+            let index = match active {
+                PowerProfile::Quiet => 0,
+                PowerProfile::Balanced => 1,
+                PowerProfile::Performance => 2,
+            };
+
+            let _guards: Vec<_> = radios.iter().map(|radio| radio.freeze_notify()).collect();
+            if let Some(radio) = radios.get(index) {
+                radio.set_active(true);
+            }
+        }
+
+        if let Some(combo) = imp.ac_combo.borrow().as_ref() {
+            let _guard = combo.freeze_notify();
+            let index = match on_ac {
+                PowerProfile::Quiet => 0,
+                PowerProfile::Balanced => 1,
+                PowerProfile::Performance => 2,
+            };
+            combo.set_selected(index);
+        }
+
+        if let Some(combo) = imp.battery_combo.borrow().as_ref() {
+            let _guard = combo.freeze_notify();
+            let index = match on_battery {
+                PowerProfile::Quiet => 0,
+                PowerProfile::Balanced => 1,
+                PowerProfile::Performance => 2,
+            };
+            combo.set_selected(index);
+        }
+
+        *imp.refreshing.borrow_mut() = false;
+    }
+
+    fn reconcile_profiles_after_write_failure(&self) {
+        match backend::get_profile_state() {
+            Ok(state) => self.apply_profile_state(state.active, state.on_ac, state.on_battery),
+            Err(e) => {
+                log::error!("Failed to reconcile profile state after write failure: {e}");
+            }
+        }
+    }
+
+    fn apply_charge_limit(&self, limit: u8) {
+        let imp = self.imp();
+        *imp.refreshing.borrow_mut() = true;
+
+        if let Some(scale) = imp.charge_scale.borrow().as_ref() {
+            let _guard = scale.freeze_notify();
+            scale.set_value(limit as f64);
+        }
+
+        *imp.refreshing.borrow_mut() = false;
+    }
+
+    fn reconcile_charge_limit_after_write_failure(&self) {
+        match backend::get_charge_limit_dbus() {
+            Ok(limit) => self.apply_charge_limit(limit),
+            Err(e) => {
+                log::error!("Failed to reconcile charge limit after write failure: {e}");
+            }
+        }
+    }
+
     /// Refresh/reload all data on this page
     fn refresh_data(&self) {
         let imp = self.imp();
@@ -289,51 +373,9 @@ impl PowerPage {
             return;
         }
 
-        *imp.refreshing.borrow_mut() = true;
-
         // Get current profile state via CLI (more reliable mapping)
         match backend::get_profile_state() {
-            Ok(state) => {
-                // Update profile radios
-                {
-                    let radios = imp.profile_radios.borrow();
-                    let index = match state.active {
-                        PowerProfile::Quiet => 0,
-                        PowerProfile::Balanced => 1,
-                        PowerProfile::Performance => 2,
-                    };
-
-                    // Freeze all radios to prevent GTK state accounting issues
-                    // Guards auto-call thaw_notify when dropped
-                    let _guards: Vec<_> =
-                        radios.iter().map(|radio| radio.freeze_notify()).collect();
-                    if let Some(radio) = radios.get(index) {
-                        radio.set_active(true);
-                    }
-                }
-
-                // Set AC combo
-                if let Some(combo) = imp.ac_combo.borrow().as_ref() {
-                    let _guard = combo.freeze_notify();
-                    let ac_index = match state.on_ac {
-                        PowerProfile::Quiet => 0,
-                        PowerProfile::Balanced => 1,
-                        PowerProfile::Performance => 2,
-                    };
-                    combo.set_selected(ac_index);
-                }
-
-                // Set battery combo
-                if let Some(combo) = imp.battery_combo.borrow().as_ref() {
-                    let _guard = combo.freeze_notify();
-                    let bat_index = match state.on_battery {
-                        PowerProfile::Quiet => 0,
-                        PowerProfile::Balanced => 1,
-                        PowerProfile::Performance => 2,
-                    };
-                    combo.set_selected(bat_index);
-                }
-            }
+            Ok(state) => self.apply_profile_state(state.active, state.on_ac, state.on_battery),
             Err(e) => {
                 log::error!("Failed to get profile state: {e}");
             }
@@ -341,20 +383,13 @@ impl PowerPage {
 
         // Load charge limit via D-Bus (only if charge control is supported)
         if *imp.charge_control_available.borrow() {
-            if let Some(scale) = imp.charge_scale.borrow().as_ref() {
-                match backend::get_charge_limit_dbus() {
-                    Ok(limit) => {
-                        let _guard = scale.freeze_notify();
-                        scale.set_value(limit as f64);
-                    }
-                    Err(e) => {
-                        log::error!("Failed to get charge limit: {e}");
-                    }
+            match backend::get_charge_limit_dbus() {
+                Ok(limit) => self.apply_charge_limit(limit),
+                Err(e) => {
+                    log::error!("Failed to get charge limit: {e}");
                 }
             }
         }
-
-        *imp.refreshing.borrow_mut() = false;
     }
 }
 

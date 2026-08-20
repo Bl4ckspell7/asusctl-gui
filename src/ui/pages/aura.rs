@@ -4,10 +4,10 @@ use gtk4::glib::prelude::ObjectExt;
 use gtk4::prelude::*;
 use gtk4::subclass::prelude::*;
 use libadwaita as adw;
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 
 use crate::backend::{self, AuraDirection, AuraMode, AuraSpeed, KeyboardBrightness};
-use crate::ui::Refreshable;
+use crate::ui::{Refreshable, show_backend_error};
 
 mod imp {
     use super::*;
@@ -29,6 +29,8 @@ mod imp {
         pub zone_dropdown: RefCell<Option<gtk4::DropDown>>,
         pub color_group: RefCell<Option<adw::PreferencesGroup>>,
         pub selected_mode: RefCell<AuraMode>,
+        pub confirmed_mode: Cell<AuraMode>,
+        pub last_successful_zone: Cell<u32>,
         pub refreshing: RefCell<bool>,
     }
 
@@ -96,6 +98,9 @@ impl AuraPage {
         } else {
             features.aura_modes.clone()
         };
+        let initial_mode = supported_modes.first().copied().unwrap_or_default();
+        *imp.selected_mode.borrow_mut() = initial_mode;
+        imp.confirmed_mode.set(initial_mode);
         let supported_zones: Vec<String> = features.aura_zones.clone();
 
         // Page title
@@ -142,6 +147,8 @@ impl AuraPage {
                 if button.is_active() {
                     if let Err(e) = backend::set_keyboard_brightness(level_clone) {
                         log::error!("Failed to set brightness: {e}");
+                        show_backend_error(&this, "Couldn’t change keyboard brightness", &e);
+                        this.reconcile_brightness_after_write_failure();
                     }
                 }
             });
@@ -213,9 +220,6 @@ impl AuraPage {
             let modes = supported_modes.clone();
             let help_map = mode_help.clone();
             mode_combo.connect_selected_notify(move |combo| {
-                if *this.imp().refreshing.borrow() {
-                    return;
-                }
                 let idx = combo.selected() as usize;
                 if let Some(&mode) = modes.get(idx) {
                     *this.imp().selected_mode.borrow_mut() = mode;
@@ -223,7 +227,9 @@ impl AuraPage {
                         info_popover_label.set_text(help);
                     }
                     this.update_mode_visibility();
-                    this.apply_aura();
+                    if !*this.imp().refreshing.borrow() {
+                        this.apply_aura();
+                    }
                 }
             });
         }
@@ -464,18 +470,22 @@ impl AuraPage {
             .find(|(btn, _)| btn.is_active())
             .map(|(_, d)| *d);
 
-        let zone = imp.zone_dropdown.borrow().as_ref().and_then(|dd| {
-            let selected = dd.selected();
-            if selected == 0 {
-                None // "Default" = no zone arg
+        let (zone_index, zone) = if let Some(dropdown) = imp.zone_dropdown.borrow().as_ref() {
+            let selected = dropdown.selected();
+            let zone = if selected == 0 {
+                None
             } else {
-                dd.selected_item()
+                dropdown
+                    .selected_item()
                     .and_downcast::<gtk4::StringObject>()
                     .map(|obj| obj.string().to_string())
-            }
-        });
+            };
+            (selected, zone)
+        } else {
+            (0, None)
+        };
 
-        if let Err(e) = backend::set_aura_mode(
+        match backend::set_aura_mode(
             mode,
             colour.as_deref(),
             colour2.as_deref(),
@@ -483,8 +493,170 @@ impl AuraPage {
             direction,
             zone.as_deref(),
         ) {
-            log::error!("Failed to set aura mode: {e}");
+            Ok(()) => {
+                imp.confirmed_mode.set(mode);
+                imp.last_successful_zone.set(zone_index);
+            }
+            Err(e) => {
+                log::error!("Failed to set aura mode: {e}");
+                show_backend_error(self, "Couldn’t change Aura lighting", &e);
+                self.reconcile_aura_after_write_failure();
+            }
         }
+    }
+
+    fn apply_keyboard_brightness(&self, brightness: KeyboardBrightness) {
+        let imp = self.imp();
+        *imp.refreshing.borrow_mut() = true;
+
+        {
+            let buttons = imp.brightness_buttons.borrow();
+            let index = match brightness {
+                KeyboardBrightness::Off => 0,
+                KeyboardBrightness::Low => 1,
+                KeyboardBrightness::Med => 2,
+                KeyboardBrightness::High => 3,
+            };
+
+            let _guards: Vec<_> = buttons
+                .iter()
+                .map(|button| button.freeze_notify())
+                .collect();
+            if let Some(button) = buttons.get(index) {
+                button.set_active(true);
+            }
+        }
+
+        *imp.refreshing.borrow_mut() = false;
+    }
+
+    fn reconcile_brightness_after_write_failure(&self) {
+        match backend::get_keyboard_brightness_dbus() {
+            Ok(brightness) => self.apply_keyboard_brightness(brightness),
+            Err(e) => {
+                log::error!("Failed to reconcile keyboard brightness after write failure: {e}");
+            }
+        }
+    }
+
+    fn apply_aura_mode_state(
+        &self,
+        mode: AuraMode,
+        speed: AuraSpeed,
+        direction: AuraDirection,
+        color1: (u8, u8, u8),
+        color2: (u8, u8, u8),
+        zone_index: Option<u32>,
+    ) {
+        let imp = self.imp();
+        *imp.refreshing.borrow_mut() = true;
+
+        {
+            let modes = imp.supported_modes.borrow();
+            if let Some(index) = modes.iter().position(|supported| *supported == mode) {
+                if let Some(combo) = imp.mode_combo.borrow().as_ref() {
+                    let _guard = combo.freeze_notify();
+                    combo.set_selected(index as u32);
+                }
+                *imp.selected_mode.borrow_mut() = mode;
+                imp.confirmed_mode.set(mode);
+            }
+        }
+
+        {
+            let speed_buttons = imp.speed_buttons.borrow();
+            let _guards: Vec<_> = speed_buttons
+                .iter()
+                .map(|(button, _)| button.freeze_notify())
+                .collect();
+            for (button, button_speed) in speed_buttons.iter() {
+                if *button_speed == speed {
+                    button.set_active(true);
+                    break;
+                }
+            }
+        }
+
+        {
+            let direction_buttons = imp.direction_buttons.borrow();
+            let _guards: Vec<_> = direction_buttons
+                .iter()
+                .map(|(button, _)| button.freeze_notify())
+                .collect();
+            for (button, button_direction) in direction_buttons.iter() {
+                if *button_direction == direction {
+                    button.set_active(true);
+                    break;
+                }
+            }
+        }
+
+        if let Some(color_button) = imp.color_button.borrow().as_ref() {
+            let _guard = color_button.freeze_notify();
+            let (red, green, blue) = color1;
+            color_button.set_rgba(&gtk4::gdk::RGBA::new(
+                red as f32 / 255.0,
+                green as f32 / 255.0,
+                blue as f32 / 255.0,
+                1.0,
+            ));
+        }
+
+        if let Some(color_button) = imp.color2_button.borrow().as_ref() {
+            let _guard = color_button.freeze_notify();
+            let (red, green, blue) = color2;
+            color_button.set_rgba(&gtk4::gdk::RGBA::new(
+                red as f32 / 255.0,
+                green as f32 / 255.0,
+                blue as f32 / 255.0,
+                1.0,
+            ));
+        }
+
+        if let (Some(index), Some(dropdown)) = (zone_index, imp.zone_dropdown.borrow().as_ref()) {
+            let _guard = dropdown.freeze_notify();
+            dropdown.set_selected(index);
+        }
+
+        self.update_mode_visibility();
+        *imp.refreshing.borrow_mut() = false;
+    }
+
+    fn reconcile_aura_after_write_failure(&self) {
+        match backend::get_aura_mode_data_dbus() {
+            Ok(mode_data) => self.apply_aura_mode_state(
+                mode_data.mode,
+                mode_data.speed,
+                mode_data.direction,
+                mode_data.color1,
+                mode_data.color2,
+                Some(self.imp().last_successful_zone.get()),
+            ),
+            Err(e) => {
+                log::error!("Failed to reconcile Aura lighting after write failure: {e}");
+                self.restore_confirmed_mode();
+            }
+        }
+    }
+
+    fn restore_confirmed_mode(&self) {
+        let imp = self.imp();
+        let mode = imp.confirmed_mode.get();
+        *imp.refreshing.borrow_mut() = true;
+
+        {
+            let modes = imp.supported_modes.borrow();
+            if let Some(index) = modes.iter().position(|supported| *supported == mode) {
+                if let Some(combo) = imp.mode_combo.borrow().as_ref() {
+                    let _guard = combo.freeze_notify();
+                    combo.set_selected(index as u32);
+                }
+                *imp.selected_mode.borrow_mut() = mode;
+            }
+        }
+
+        self.update_mode_visibility();
+        *imp.refreshing.borrow_mut() = false;
     }
 
     /// Refresh/reload all data on this page
@@ -495,26 +667,9 @@ impl AuraPage {
             return;
         }
 
-        *imp.refreshing.borrow_mut() = true;
-
         // Get current brightness via D-Bus and update buttons
         match backend::get_keyboard_brightness_dbus() {
-            Ok(current_brightness) => {
-                let buttons = imp.brightness_buttons.borrow();
-                let index = match current_brightness {
-                    KeyboardBrightness::Off => 0,
-                    KeyboardBrightness::Low => 1,
-                    KeyboardBrightness::Med => 2,
-                    KeyboardBrightness::High => 3,
-                };
-
-                // Freeze all buttons to prevent GTK state accounting issues
-                // Guards auto-call thaw_notify when dropped
-                let _guards: Vec<_> = buttons.iter().map(|btn| btn.freeze_notify()).collect();
-                if let Some(btn) = buttons.get(index) {
-                    btn.set_active(true);
-                }
-            }
+            Ok(current_brightness) => self.apply_keyboard_brightness(current_brightness),
             Err(e) => {
                 log::error!("Failed to get keyboard brightness: {e}");
             }
@@ -522,84 +677,18 @@ impl AuraPage {
 
         // Get full aura mode data via D-Bus and update all controls
         match backend::get_aura_mode_data_dbus() {
-            Ok(mode_data) => {
-                // Update mode combo
-                {
-                    let modes = imp.supported_modes.borrow();
-                    if let Some(idx) = modes.iter().position(|m| *m == mode_data.mode) {
-                        if let Some(combo) = imp.mode_combo.borrow().as_ref() {
-                            let _guard = combo.freeze_notify();
-                            combo.set_selected(idx as u32);
-                        }
-                        *imp.selected_mode.borrow_mut() = mode_data.mode;
-                    }
-                }
-
-                // Update speed buttons
-                {
-                    let speed_buttons = imp.speed_buttons.borrow();
-                    let _guards: Vec<_> = speed_buttons
-                        .iter()
-                        .map(|(btn, _)| btn.freeze_notify())
-                        .collect();
-                    for (btn, speed) in speed_buttons.iter() {
-                        if *speed == mode_data.speed {
-                            btn.set_active(true);
-                            break;
-                        }
-                    }
-                }
-
-                // Update direction buttons
-                {
-                    let direction_buttons = imp.direction_buttons.borrow();
-                    let _guards: Vec<_> = direction_buttons
-                        .iter()
-                        .map(|(btn, _)| btn.freeze_notify())
-                        .collect();
-                    for (btn, dir) in direction_buttons.iter() {
-                        if *dir == mode_data.direction {
-                            btn.set_active(true);
-                            break;
-                        }
-                    }
-                }
-
-                // Update primary color (guard prevents callback during set_rgba)
-                if let Some(color_btn) = imp.color_button.borrow().as_ref() {
-                    let _guard = color_btn.freeze_notify();
-                    let (r, g, b) = mode_data.color1;
-                    let rgba = gtk4::gdk::RGBA::new(
-                        r as f32 / 255.0,
-                        g as f32 / 255.0,
-                        b as f32 / 255.0,
-                        1.0,
-                    );
-                    color_btn.set_rgba(&rgba);
-                }
-
-                // Update secondary color
-                if let Some(color2_btn) = imp.color2_button.borrow().as_ref() {
-                    let _guard = color2_btn.freeze_notify();
-                    let (r, g, b) = mode_data.color2;
-                    let rgba = gtk4::gdk::RGBA::new(
-                        r as f32 / 255.0,
-                        g as f32 / 255.0,
-                        b as f32 / 255.0,
-                        1.0,
-                    );
-                    color2_btn.set_rgba(&rgba);
-                }
-
-                // Update visibility based on the current mode
-                self.update_mode_visibility();
-            }
+            Ok(mode_data) => self.apply_aura_mode_state(
+                mode_data.mode,
+                mode_data.speed,
+                mode_data.direction,
+                mode_data.color1,
+                mode_data.color2,
+                None,
+            ),
             Err(e) => {
                 log::error!("Failed to get aura mode data: {e}");
             }
         }
-
-        *imp.refreshing.borrow_mut() = false;
     }
 }
 

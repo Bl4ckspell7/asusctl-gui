@@ -22,7 +22,7 @@ use super::{
 mod imp {
     use super::*;
     use adw::subclass::prelude::*;
-    use std::cell::RefCell;
+    use std::cell::{OnceCell, RefCell};
 
     #[derive(Debug, Default)]
     pub struct AsusctlGuiWindow {
@@ -30,6 +30,8 @@ mod imp {
         pub stack: RefCell<Option<gtk4::Stack>>,
         pub sidebar: RefCell<Option<adw::Sidebar>>,
         pub settings: RefCell<Option<gio::Settings>>,
+        pub toast_overlay: OnceCell<adw::ToastOverlay>,
+        pub active_error_toast: RefCell<Option<adw::Toast>>,
         // Store direct references to pages for refresh
         pub about_page: RefCell<Option<AboutPage>>,
         pub aura_page: RefCell<Option<AuraPage>>,
@@ -290,12 +292,15 @@ impl AsusctlGuiWindow {
         let loading_view = adw::ToolbarView::new();
         loading_view.add_top_bar(&loading_header);
         loading_view.set_content(Some(&spinner));
-        self.set_content(Some(&loading_view));
+
+        let toast_overlay = imp.toast_overlay.get_or_init(adw::ToastOverlay::new);
+        toast_overlay.set_child(Some(&loading_view));
+        self.set_content(Some(toast_overlay));
 
         // Setup actions
         self.setup_actions();
 
-        // Store references (split view swapped in once loading finishes)
+        // Store references (split view becomes the overlay child once loading finishes)
         imp.split_view.replace(Some(split_view));
         imp.stack.replace(Some(stack));
         imp.sidebar.replace(Some(sidebar));
@@ -377,9 +382,11 @@ impl AsusctlGuiWindow {
         imp.power_page.replace(Some(power_page));
         imp.slash_page.replace(Some(slash_page));
 
-        // Swap loading screen for the full split view
-        if let Some(split_view) = imp.split_view.borrow().as_ref() {
-            self.set_content(Some(split_view));
+        // Swap loading screen for the full split view while retaining the toast overlay
+        if let (Some(overlay), Some(split_view)) =
+            (imp.toast_overlay.get(), imp.split_view.borrow().as_ref())
+        {
+            overlay.set_child(Some(split_view));
         }
 
         // Determine startup page
@@ -432,6 +439,44 @@ impl AsusctlGuiWindow {
             window.close();
         });
         self.add_action(&quit_action);
+    }
+
+    pub(crate) fn show_error_toast(&self, title: &str) {
+        let imp = self.imp();
+        let Some(overlay) = imp.toast_overlay.get() else {
+            return;
+        };
+
+        let active_toast = imp.active_error_toast.borrow().clone();
+        let toast = if let Some(toast) = active_toast {
+            toast.set_title(title);
+            toast
+        } else {
+            let toast = adw::Toast::builder()
+                .title(title)
+                .priority(adw::ToastPriority::High)
+                .timeout(5)
+                .use_markup(false)
+                .build();
+            let window_weak = self.downgrade();
+            toast.connect_dismissed(move |dismissed_toast| {
+                let Some(window) = window_weak.upgrade() else {
+                    return;
+                };
+
+                let mut active_toast = window.imp().active_error_toast.borrow_mut();
+                if active_toast
+                    .as_ref()
+                    .is_some_and(|active_toast| active_toast == dismissed_toast)
+                {
+                    active_toast.take();
+                }
+            });
+            imp.active_error_toast.replace(Some(toast.clone()));
+            toast
+        };
+
+        overlay.add_toast(toast);
     }
 
     fn show_preferences_dialog(&self) {

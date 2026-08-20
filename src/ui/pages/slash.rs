@@ -4,10 +4,10 @@ use gtk4::glib::prelude::ObjectExt;
 use gtk4::prelude::*;
 use gtk4::subclass::prelude::*;
 use libadwaita as adw;
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 
-use crate::backend::{self, SlashMode};
-use crate::ui::Refreshable;
+use crate::backend::{self, AsusctlError, SlashMode};
+use crate::ui::{Refreshable, show_backend_error};
 
 mod imp {
     use super::*;
@@ -24,6 +24,7 @@ mod imp {
         pub show_on_sleep: RefCell<Option<adw::SwitchRow>>,
         pub show_on_battery: RefCell<Option<adw::SwitchRow>>,
         pub show_battery_warning: RefCell<Option<adw::SwitchRow>>,
+        pub confirmed_enabled: Cell<bool>,
         /// Flag to prevent signal handlers from firing during refresh
         pub refreshing: RefCell<bool>,
     }
@@ -147,13 +148,18 @@ impl SlashPage {
                     backend::disable_slash()
                 };
 
-                if let Err(e) = result {
-                    log::error!("Failed to toggle slash: {e}");
-                }
-
-                // Enable/disable brightness slider based on slash state
+                // Keep slider sensitivity consistent with the optimistic switch state.
                 if let Some(scale) = this.imp().brightness_scale.borrow().as_ref() {
                     scale.set_sensitive(enabled);
+                }
+
+                match result {
+                    Ok(()) => this.imp().confirmed_enabled.set(enabled),
+                    Err(e) => {
+                        log::error!("Failed to toggle slash: {e}");
+                        show_backend_error(&this, "Couldn’t change Slash lighting", &e);
+                        this.reconcile_enabled_after_write_failure();
+                    }
                 }
             });
         }
@@ -188,6 +194,8 @@ impl SlashPage {
                 let value = scale.value() as u8;
                 if let Err(e) = backend::set_slash_brightness(value) {
                     log::error!("Failed to set slash brightness: {e}");
+                    show_backend_error(&this, "Couldn’t change Slash brightness", &e);
+                    this.reconcile_brightness_after_write_failure();
                 }
             });
         }
@@ -238,6 +246,8 @@ impl SlashPage {
 
                 if let Err(e) = backend::set_slash_mode(mode) {
                     log::error!("Failed to set slash mode: {e}");
+                    show_backend_error(&this, "Couldn’t change the Slash animation", &e);
+                    this.reconcile_mode_after_write_failure();
                 }
             });
         }
@@ -263,6 +273,8 @@ impl SlashPage {
                 let interval = combo.selected() as u8;
                 if let Err(e) = backend::set_slash_interval(interval) {
                     log::error!("Failed to set slash interval: {e}");
+                    show_backend_error(&this, "Couldn’t change the Slash animation speed", &e);
+                    this.reconcile_interval_after_write_failure();
                 }
             });
         }
@@ -290,6 +302,8 @@ impl SlashPage {
                 }
                 if let Err(e) = backend::set_slash_show_on_boot(switch.is_active()) {
                     log::error!("Failed to set show on boot: {e}");
+                    show_backend_error(&this, "Couldn’t change the Slash event settings", &e);
+                    this.reconcile_show_on_boot_after_write_failure();
                 }
             });
         }
@@ -309,6 +323,8 @@ impl SlashPage {
                 }
                 if let Err(e) = backend::set_slash_show_on_shutdown(switch.is_active()) {
                     log::error!("Failed to set show on shutdown: {e}");
+                    show_backend_error(&this, "Couldn’t change the Slash event settings", &e);
+                    this.reconcile_show_on_shutdown_after_write_failure();
                 }
             });
         }
@@ -328,6 +344,8 @@ impl SlashPage {
                 }
                 if let Err(e) = backend::set_slash_show_on_sleep(switch.is_active()) {
                     log::error!("Failed to set show on sleep: {e}");
+                    show_backend_error(&this, "Couldn’t change the Slash event settings", &e);
+                    this.reconcile_show_on_sleep_after_write_failure();
                 }
             });
         }
@@ -347,6 +365,8 @@ impl SlashPage {
                 }
                 if let Err(e) = backend::set_slash_show_on_battery(switch.is_active()) {
                     log::error!("Failed to set show on battery: {e}");
+                    show_backend_error(&this, "Couldn’t change the Slash event settings", &e);
+                    this.reconcile_show_on_battery_after_write_failure();
                 }
             });
         }
@@ -366,6 +386,8 @@ impl SlashPage {
                 }
                 if let Err(e) = backend::set_slash_show_battery_warning(switch.is_active()) {
                     log::error!("Failed to set show battery warning: {e}");
+                    show_backend_error(&this, "Couldn’t change the Slash event settings", &e);
+                    this.reconcile_battery_warning_after_write_failure();
                 }
             });
         }
@@ -374,6 +396,170 @@ impl SlashPage {
         events_group.add(&show_battery_warning);
 
         self.append(&events_group);
+    }
+
+    fn apply_enabled_state(&self, enabled: bool) {
+        let imp = self.imp();
+        *imp.refreshing.borrow_mut() = true;
+        imp.confirmed_enabled.set(enabled);
+
+        if let Some(switch) = imp.enable_switch.borrow().as_ref() {
+            let _guard = switch.freeze_notify();
+            switch.set_active(enabled);
+        }
+        if let Some(scale) = imp.brightness_scale.borrow().as_ref() {
+            scale.set_sensitive(enabled);
+        }
+
+        *imp.refreshing.borrow_mut() = false;
+    }
+
+    fn reconcile_enabled_after_write_failure(&self) {
+        match backend::get_slash_enabled() {
+            Ok(enabled) => self.apply_enabled_state(enabled),
+            Err(e) => {
+                log::error!("Failed to reconcile Slash enabled state after write failure: {e}");
+                self.apply_enabled_state(self.imp().confirmed_enabled.get());
+            }
+        }
+    }
+
+    fn apply_brightness(&self, brightness: u8) {
+        let imp = self.imp();
+        *imp.refreshing.borrow_mut() = true;
+
+        if let Some(scale) = imp.brightness_scale.borrow().as_ref() {
+            let _guard = scale.freeze_notify();
+            scale.set_value(brightness as f64);
+        }
+
+        *imp.refreshing.borrow_mut() = false;
+    }
+
+    fn reconcile_brightness_after_write_failure(&self) {
+        match backend::get_slash_brightness() {
+            Ok(brightness) => self.apply_brightness(brightness),
+            Err(e) => {
+                log::error!("Failed to reconcile Slash brightness after write failure: {e}");
+            }
+        }
+    }
+
+    fn apply_mode(&self, mode: SlashMode) {
+        let imp = self.imp();
+        *imp.refreshing.borrow_mut() = true;
+
+        if let Some(combo) = imp.mode_combo.borrow().as_ref() {
+            let _guard = combo.freeze_notify();
+            combo.set_selected(slash_mode_index(mode));
+        }
+
+        *imp.refreshing.borrow_mut() = false;
+    }
+
+    fn reconcile_mode_after_write_failure(&self) {
+        match backend::get_slash_mode() {
+            Ok(mode) => self.apply_mode(mode),
+            Err(e) => {
+                log::error!("Failed to reconcile Slash mode after write failure: {e}");
+            }
+        }
+    }
+
+    fn apply_interval(&self, interval: u8) {
+        let imp = self.imp();
+        *imp.refreshing.borrow_mut() = true;
+
+        if let Some(combo) = imp.interval_combo.borrow().as_ref() {
+            let _guard = combo.freeze_notify();
+            combo.set_selected(interval as u32);
+        }
+
+        *imp.refreshing.borrow_mut() = false;
+    }
+
+    fn reconcile_interval_after_write_failure(&self) {
+        match backend::get_slash_interval() {
+            Ok(interval) => self.apply_interval(interval),
+            Err(e) => {
+                log::error!("Failed to reconcile Slash interval after write failure: {e}");
+            }
+        }
+    }
+
+    fn apply_event_switch(&self, switch: &adw::SwitchRow, value: bool) {
+        let imp = self.imp();
+        *imp.refreshing.borrow_mut() = true;
+
+        {
+            let _guard = switch.freeze_notify();
+            switch.set_active(value);
+        }
+
+        *imp.refreshing.borrow_mut() = false;
+    }
+
+    fn reconcile_event_switch(
+        &self,
+        result: Result<bool, AsusctlError>,
+        switch: Option<adw::SwitchRow>,
+        setting: &str,
+    ) {
+        match result {
+            Ok(value) => {
+                if let Some(switch) = switch {
+                    self.apply_event_switch(&switch, value);
+                }
+            }
+            Err(e) => {
+                log::error!("Failed to reconcile {setting} after write failure: {e}");
+            }
+        }
+    }
+
+    fn reconcile_show_on_boot_after_write_failure(&self) {
+        let switch = self.imp().show_on_boot.borrow().clone();
+        self.reconcile_event_switch(
+            backend::get_slash_show_on_boot(),
+            switch,
+            "Slash show-on-boot state",
+        );
+    }
+
+    fn reconcile_show_on_shutdown_after_write_failure(&self) {
+        let switch = self.imp().show_on_shutdown.borrow().clone();
+        self.reconcile_event_switch(
+            backend::get_slash_show_on_shutdown(),
+            switch,
+            "Slash show-on-shutdown state",
+        );
+    }
+
+    fn reconcile_show_on_sleep_after_write_failure(&self) {
+        let switch = self.imp().show_on_sleep.borrow().clone();
+        self.reconcile_event_switch(
+            backend::get_slash_show_on_sleep(),
+            switch,
+            "Slash show-on-sleep state",
+        );
+    }
+
+    fn reconcile_show_on_battery_after_write_failure(&self) {
+        let switch = self.imp().show_on_battery.borrow().clone();
+        self.reconcile_event_switch(
+            backend::get_slash_show_on_battery(),
+            switch,
+            "Slash show-on-battery state",
+        );
+    }
+
+    fn reconcile_battery_warning_after_write_failure(&self) {
+        let switch = self.imp().show_battery_warning.borrow().clone();
+        self.reconcile_event_switch(
+            backend::get_slash_show_battery_warning(),
+            switch,
+            "Slash battery-warning state",
+        );
     }
 
     /// Refresh/reload all data on this page
@@ -393,11 +579,12 @@ impl SlashPage {
                 Ok(enabled) => {
                     let _guard = switch.freeze_notify();
                     switch.set_active(enabled);
+                    imp.confirmed_enabled.set(enabled);
                     enabled
                 }
                 Err(e) => {
                     log::error!("Failed to get slash enabled state: {e}");
-                    false
+                    imp.confirmed_enabled.get()
                 }
             }
         } else {
@@ -422,26 +609,8 @@ impl SlashPage {
         if let Some(combo) = imp.mode_combo.borrow().as_ref() {
             match backend::get_slash_mode() {
                 Ok(mode) => {
-                    let index = match mode {
-                        SlashMode::Static => 0,
-                        SlashMode::Bounce => 1,
-                        SlashMode::Slash => 2,
-                        SlashMode::Loading => 3,
-                        SlashMode::BitStream => 4,
-                        SlashMode::Transmission => 5,
-                        SlashMode::Flow => 6,
-                        SlashMode::Flux => 7,
-                        SlashMode::Phantom => 8,
-                        SlashMode::Spectrum => 9,
-                        SlashMode::Hazard => 10,
-                        SlashMode::Interfacing => 11,
-                        SlashMode::Ramp => 12,
-                        SlashMode::GameOver => 13,
-                        SlashMode::Start => 14,
-                        SlashMode::Buzzer => 15,
-                    };
                     let _guard = combo.freeze_notify();
-                    combo.set_selected(index);
+                    combo.set_selected(slash_mode_index(mode));
                 }
                 Err(e) => {
                     log::error!("Failed to get slash mode: {e}");
@@ -500,6 +669,27 @@ impl SlashPage {
 
         // Clear refreshing flag
         *imp.refreshing.borrow_mut() = false;
+    }
+}
+
+fn slash_mode_index(mode: SlashMode) -> u32 {
+    match mode {
+        SlashMode::Static => 0,
+        SlashMode::Bounce => 1,
+        SlashMode::Slash => 2,
+        SlashMode::Loading => 3,
+        SlashMode::BitStream => 4,
+        SlashMode::Transmission => 5,
+        SlashMode::Flow => 6,
+        SlashMode::Flux => 7,
+        SlashMode::Phantom => 8,
+        SlashMode::Spectrum => 9,
+        SlashMode::Hazard => 10,
+        SlashMode::Interfacing => 11,
+        SlashMode::Ramp => 12,
+        SlashMode::GameOver => 13,
+        SlashMode::Start => 14,
+        SlashMode::Buzzer => 15,
     }
 }
 
