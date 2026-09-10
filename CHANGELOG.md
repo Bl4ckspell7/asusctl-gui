@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.0] - 2026-09-10
+
+### Features
+
+- *(ui)* Show backend write failures in toasts
+
+### Bug Fixes
+
+- *(backend)* Tighten asusd service-down detection
+- *(preferences)* Clarify refresh interval wording
+- *(ui)* Restore Aura mode after failed updates
+- *(ui)* Restore Slash controls after failed toggle
+- *(slash)* Use asusctl 6.4 command syntax
+- *(backend)* Preserve stderr from failed asusctl commands
+
+### Documentation
+
+- Require asusctl 6.4.0 or newer
 ## [0.2.0] - 2026-07-29
 
 ### Features
