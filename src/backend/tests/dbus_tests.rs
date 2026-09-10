@@ -2,25 +2,80 @@ use super::*;
 use crate::backend::error::AsusctlError;
 
 #[test]
-fn missing_binary_empty_output_is_not_installed() {
-    // flatpak-spawn exits non-zero (127) with empty stdout when the host
-    // asusctl is absent — the bug this guards against.
-    let result = interpret_asusctl_output(false, String::new(), "");
+fn exit_127_with_empty_output_is_not_installed() {
+    // Some flatpak-spawn versions report a missing host binary only through
+    // exit 127, with no stdout or stderr.
+    let result = interpret_asusctl_output(false, Some(127), String::new(), "");
     assert!(matches!(result, Err(AsusctlError::NotInstalled)));
 }
 
 #[test]
-fn whitespace_only_output_with_failure_is_not_installed() {
-    let result = interpret_asusctl_output(false, "   \n".to_string(), "");
+fn exit_127_with_whitespace_only_output_is_not_installed() {
+    let result = interpret_asusctl_output(false, Some(127), "   \n".to_string(), "");
     assert!(matches!(result, Err(AsusctlError::NotInstalled)));
+}
+
+#[test]
+fn flatpak_missing_host_child_is_not_installed() {
+    let stderr = "Portal call failed: Failed to start command: Failed to execute child process \
+                  “asusctl” (No such file or directory)";
+    let result = interpret_asusctl_output(false, Some(1), String::new(), stderr);
+    assert!(matches!(result, Err(AsusctlError::NotInstalled)));
+}
+
+#[test]
+fn flatpak_missing_host_child_detection_requires_both_markers() {
+    for stderr in [
+        "Failed to execute child process ‘asusctl’",
+        "No such file or directory",
+    ] {
+        let result = interpret_asusctl_output(false, Some(1), String::new(), stderr);
+        assert!(matches!(result, Err(AsusctlError::CommandFailed(message)) if message == stderr));
+    }
+}
+
+#[test]
+fn parser_error_is_command_failed_with_trimmed_stderr() {
+    let stderr =
+        "  Unrecognized argument: --enable\n\nRun asusctl --help for more information.  \n";
+    let result = interpret_asusctl_output(false, Some(1), String::new(), stderr);
+
+    assert!(matches!(
+        result,
+        Err(AsusctlError::CommandFailed(message))
+            if message
+                == "Unrecognized argument: --enable\n\nRun asusctl --help for more information."
+    ));
+}
+
+#[test]
+fn empty_stderr_failure_reports_exit_status() {
+    let result = interpret_asusctl_output(false, Some(2), String::new(), " \n");
+    assert!(matches!(
+        result,
+        Err(AsusctlError::CommandFailed(message))
+            if message == "asusctl exited with status 2"
+    ));
+}
+
+#[test]
+fn signal_failure_without_stderr_reports_missing_exit_code() {
+    let result = interpret_asusctl_output(false, None, String::new(), "");
+    assert!(matches!(
+        result,
+        Err(AsusctlError::CommandFailed(message))
+            if message == "asusctl terminated without an exit code"
+    ));
 }
 
 #[test]
 fn asusd_unreachable_is_service_not_running() {
-    let refused = interpret_asusctl_output(false, String::new(), "Error: Connection refused");
+    let refused =
+        interpret_asusctl_output(false, Some(1), String::new(), "Error: Connection refused");
     assert!(matches!(refused, Err(AsusctlError::ServiceNotRunning)));
 
-    let no_asusd = interpret_asusctl_output(false, String::new(), "failed to connect to asusd");
+    let no_asusd =
+        interpret_asusctl_output(false, Some(1), String::new(), "failed to connect to asusd");
     assert!(matches!(no_asusd, Err(AsusctlError::ServiceNotRunning)));
 }
 
@@ -28,20 +83,27 @@ fn asusd_unreachable_is_service_not_running() {
 fn service_error_takes_precedence_over_empty_output() {
     // Empty stdout + failure, but the stderr shows asusd is down: asusctl IS
     // installed, the service just isn't running.
-    let result = interpret_asusctl_output(false, String::new(), "asusd: Connection refused");
+    let result =
+        interpret_asusctl_output(false, Some(127), String::new(), "asusd: Connection refused");
     assert!(matches!(result, Err(AsusctlError::ServiceNotRunning)));
 }
 
 #[test]
 fn nonzero_exit_with_output_is_ok() {
     // asusctl frequently exits non-zero while still printing useful output.
-    let result = interpret_asusctl_output(false, "Product family: ROG".to_string(), "");
+    let result = interpret_asusctl_output(false, Some(1), "Product family: ROG".to_string(), "");
+    assert_eq!(result.unwrap(), "Product family: ROG");
+}
+
+#[test]
+fn exit_127_with_useful_output_is_ok() {
+    let result = interpret_asusctl_output(false, Some(127), "Product family: ROG".to_string(), "");
     assert_eq!(result.unwrap(), "Product family: ROG");
 }
 
 #[test]
 fn success_returns_stdout() {
-    let result = interpret_asusctl_output(true, "ok".to_string(), "");
+    let result = interpret_asusctl_output(true, Some(0), "ok".to_string(), "");
     assert_eq!(result.unwrap(), "ok");
 }
 
@@ -50,6 +112,7 @@ fn success_with_asusd_in_stderr_returns_stdout() {
     // A successful run is never reclassified, however chatty its stderr.
     let result = interpret_asusctl_output(
         true,
+        Some(0),
         "Active profile: Quiet".to_string(),
         "warning: asusd config key 'foo' is deprecated",
     );
@@ -62,6 +125,7 @@ fn failure_with_asusd_warning_and_output_returns_stdout() {
     // output — this must not read as a dead service.
     let result = interpret_asusctl_output(
         false,
+        Some(1),
         "Product family: ROG".to_string(),
         "warning: asusd config key 'foo' is deprecated",
     );
@@ -95,7 +159,7 @@ fn asusctl_own_daemon_down_prose_is_service_down() {
     assert!(stderr_reports_service_down(stderr));
 
     // The whole point: this must not be mistaken for a missing binary.
-    let result = interpret_asusctl_output(false, String::new(), stderr);
+    let result = interpret_asusctl_output(false, Some(1), String::new(), stderr);
     assert!(matches!(result, Err(AsusctlError::ServiceNotRunning)));
 }
 

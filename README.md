@@ -24,7 +24,7 @@ A GTK4/Libadwaita GUI for [asusctl](https://github.com/OpenGamingCollective/asus
 
 ## Requirements
 
-- [`asusctl`](https://github.com/OpenGamingCollective/asusctl) installed and configured
+- [`asusctl`](https://github.com/OpenGamingCollective/asusctl) `6.4.0` or newer installed and configured
 
 ## Installation
 

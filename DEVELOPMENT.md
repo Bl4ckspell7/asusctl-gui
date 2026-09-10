@@ -5,7 +5,7 @@
 - GTK4 4.22+
 - libadwaita 1.9+
 - Rust 1.85+ (edition 2024)
-- asusctl installed and configured
+- asusctl 6.4.0 or newer installed and configured
 
 ## Cargo
 

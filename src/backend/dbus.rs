@@ -55,7 +55,12 @@ pub fn run_asusctl(args: &[&str]) -> Result<String> {
 
     let stdout = String::from_utf8_lossy(&output.stdout).to_string();
     let stderr = String::from_utf8_lossy(&output.stderr);
-    interpret_asusctl_output(output.status.success(), stdout, &stderr)
+    interpret_asusctl_output(
+        output.status.success(),
+        output.status.code(),
+        stdout,
+        &stderr,
+    )
 }
 
 /// Classify an asusctl invocation's result. Separated from process spawning so
@@ -65,20 +70,50 @@ pub fn run_asusctl(args: &[&str]) -> Result<String> {
 ///   (asusctl is present but the daemon is down). See
 ///   [`stderr_reports_service_down`] — a bare mention of the daemon does not
 ///   qualify, and a successful run is never reclassified.
-/// - non-zero exit with empty stdout -> `NotInstalled`. Under
-///   `flatpak-spawn --host` a missing host `asusctl` exits 127 with empty
-///   stdout (flatpak-spawn itself runs, so it is not caught as a NotFound
-///   spawn error). asusctl often exits non-zero *with* useful stdout, so only
-///   the empty-output failure is treated as missing.
-/// - otherwise -> stdout as-is.
-fn interpret_asusctl_output(success: bool, stdout: String, stderr: &str) -> Result<String> {
-    if !success && stderr_reports_service_down(stderr) {
+/// - missing host `asusctl` -> `NotInstalled`. `flatpak-spawn --host` may
+///   either exit 127 with empty stdout or report that it failed to execute the
+///   child process because the file does not exist.
+/// - non-zero exit with useful stdout -> stdout as-is, because some asusctl
+///   queries return useful output despite their exit status.
+/// - any other failure -> `CommandFailed`, preserving trimmed stderr or an
+///   exit-status fallback when stderr is empty.
+fn interpret_asusctl_output(
+    success: bool,
+    exit_code: Option<i32>,
+    stdout: String,
+    stderr: &str,
+) -> Result<String> {
+    if success {
+        return Ok(stdout);
+    }
+
+    if stderr_reports_service_down(stderr) {
         return Err(AsusctlError::ServiceNotRunning);
     }
-    if !success && stdout.trim().is_empty() {
+
+    let has_useful_stdout = !stdout.trim().is_empty();
+    let stderr = stderr.trim();
+    let stderr_lowercase = stderr.to_lowercase();
+    let flatpak_missing_host_binary = stderr_lowercase.contains("failed to execute child process")
+        && stderr_lowercase.contains("no such file or directory");
+
+    if (exit_code == Some(127) && !has_useful_stdout) || flatpak_missing_host_binary {
         return Err(AsusctlError::NotInstalled);
     }
-    Ok(stdout)
+
+    if has_useful_stdout {
+        return Ok(stdout);
+    }
+
+    let message = if !stderr.is_empty() {
+        stderr.to_string()
+    } else if let Some(code) = exit_code {
+        format!("asusctl exited with status {code}")
+    } else {
+        "asusctl terminated without an exit code".to_string()
+    };
+
+    Err(AsusctlError::CommandFailed(message))
 }
 
 /// Messages that mean the daemon is unreachable, whoever produced them.
