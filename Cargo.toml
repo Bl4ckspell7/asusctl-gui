@@ -6,7 +6,7 @@ edition = "2024"
 [dependencies]
 gtk4 = { version = "0.11.4", features = ["v4_22"] }
 libadwaita = { version = "0.9.2", features = ["v1_9"] }
-log = "0.4.33"
+log = "0.4.34"
 env_logger = "0.11.11"
 
 [build-dependencies]
