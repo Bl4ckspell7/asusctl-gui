@@ -9,6 +9,85 @@ use std::cell::RefCell;
 use crate::backend::{self, PowerProfile};
 use crate::ui::{Refreshable, show_backend_error};
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum ChargeMode {
+    FullCapacity,
+    Balanced,
+    MaxLifespan,
+    Custom,
+}
+
+impl ChargeMode {
+    const ALL: [Self; 4] = [
+        Self::FullCapacity,
+        Self::Balanced,
+        Self::MaxLifespan,
+        Self::Custom,
+    ];
+
+    const fn label(self) -> &'static str {
+        match self {
+            Self::FullCapacity => "Full Capacity",
+            Self::Balanced => "Balanced",
+            Self::MaxLifespan => "Max Lifespan",
+            Self::Custom => "Custom",
+        }
+    }
+
+    const fn description(self) -> &'static str {
+        match self {
+            Self::FullCapacity => "Charge to 100% for maximum battery runtime",
+            Self::Balanced => "Charge to 80% for everyday use",
+            Self::MaxLifespan => "Charge to 60% to maximize battery lifespan",
+            Self::Custom => "Choose a custom charge limit with the slider",
+        }
+    }
+
+    const fn limit(self) -> Option<u8> {
+        match self {
+            Self::FullCapacity => Some(100),
+            Self::Balanced => Some(80),
+            Self::MaxLifespan => Some(60),
+            Self::Custom => None,
+        }
+    }
+
+    const fn index(self) -> u32 {
+        match self {
+            Self::FullCapacity => 0,
+            Self::Balanced => 1,
+            Self::MaxLifespan => 2,
+            Self::Custom => 3,
+        }
+    }
+
+    const fn from_index(index: u32) -> Option<Self> {
+        match index {
+            0 => Some(Self::FullCapacity),
+            1 => Some(Self::Balanced),
+            2 => Some(Self::MaxLifespan),
+            3 => Some(Self::Custom),
+            _ => None,
+        }
+    }
+
+    const fn from_limit(limit: u8) -> Self {
+        match limit {
+            100 => Self::FullCapacity,
+            80 => Self::Balanced,
+            60 => Self::MaxLifespan,
+            _ => Self::Custom,
+        }
+    }
+
+    const fn for_refreshed_limit(limit: u8, current: Option<Self>) -> Self {
+        match current {
+            Some(Self::Custom) => Self::Custom,
+            _ => Self::from_limit(limit),
+        }
+    }
+}
+
 mod imp {
     use super::*;
 
@@ -19,6 +98,7 @@ mod imp {
         pub profile_radios: RefCell<Vec<gtk4::CheckButton>>,
         pub ac_combo: RefCell<Option<adw::ComboRow>>,
         pub battery_combo: RefCell<Option<adw::ComboRow>>,
+        pub charge_preset_group: RefCell<Option<adw::ToggleGroup>>,
         pub charge_scale: RefCell<Option<gtk4::Scale>>,
         pub refreshing: RefCell<bool>,
     }
@@ -251,6 +331,60 @@ impl PowerPage {
                 .title("Battery Settings")
                 .build();
 
+            let charge_preset_row = adw::ActionRow::builder()
+                .title("Charge Presets")
+                .subtitle("Quick charge limits")
+                .build();
+
+            let charge_preset_group = adw::ToggleGroup::builder()
+                .can_shrink(true)
+                .valign(gtk4::Align::Center)
+                .build();
+
+            for mode in ChargeMode::ALL {
+                charge_preset_group.add(
+                    adw::Toggle::builder()
+                        .label(mode.label())
+                        .tooltip(mode.description())
+                        .description(mode.description())
+                        .build(),
+                );
+            }
+            charge_preset_group.set_active(gtk4::INVALID_LIST_POSITION);
+
+            {
+                let this = self.clone();
+                charge_preset_group.connect_active_notify(move |group| {
+                    if *this.imp().refreshing.borrow() {
+                        return;
+                    }
+
+                    let Some(mode) = ChargeMode::from_index(group.active()) else {
+                        return;
+                    };
+
+                    this.set_custom_charge_limit_enabled(mode == ChargeMode::Custom);
+
+                    let Some(limit) = mode.limit() else {
+                        return;
+                    };
+
+                    match backend::set_charge_limit(limit) {
+                        Ok(()) => this.apply_charge_limit(limit),
+                        Err(e) => {
+                            log::error!("Failed to set charge limit: {e}");
+                            show_backend_error(&this, "Couldn’t change the charge limit", &e);
+                            this.reconcile_charge_limit_after_write_failure();
+                        }
+                    }
+                });
+            }
+
+            imp.charge_preset_group
+                .replace(Some(charge_preset_group.clone()));
+            charge_preset_row.add_suffix(&charge_preset_group);
+            battery_settings.add(&charge_preset_row);
+
             let charge_limit_row = adw::ActionRow::builder()
                 .title("Charge Limit")
                 .subtitle("Limit maximum charge to extend battery lifespan")
@@ -261,6 +395,7 @@ impl PowerPage {
                 .adjustment(&gtk4::Adjustment::new(80.0, 20.0, 100.0, 5.0, 10.0, 0.0))
                 .hexpand(true)
                 .valign(gtk4::Align::Center)
+                .sensitive(false)
                 .draw_value(true)
                 .digits(0)
                 .build();
@@ -273,10 +408,13 @@ impl PowerPage {
                         return;
                     }
                     let value = scale.value() as u8;
-                    if let Err(e) = backend::set_charge_limit(value) {
-                        log::error!("Failed to set charge limit: {e}");
-                        show_backend_error(&this, "Couldn’t change the charge limit", &e);
-                        this.reconcile_charge_limit_after_write_failure();
+                    match backend::set_charge_limit(value) {
+                        Ok(()) => this.apply_charge_limit(value),
+                        Err(e) => {
+                            log::error!("Failed to set charge limit: {e}");
+                            show_backend_error(&this, "Couldn’t change the charge limit", &e);
+                            this.reconcile_charge_limit_after_write_failure();
+                        }
                     }
                 });
             }
@@ -348,12 +486,31 @@ impl PowerPage {
         let imp = self.imp();
         *imp.refreshing.borrow_mut() = true;
 
+        let current_mode = imp
+            .charge_preset_group
+            .borrow()
+            .as_ref()
+            .and_then(|group| ChargeMode::from_index(group.active()));
+        let mode = ChargeMode::for_refreshed_limit(limit, current_mode);
+
         if let Some(scale) = imp.charge_scale.borrow().as_ref() {
             let _guard = scale.freeze_notify();
             scale.set_value(limit as f64);
+            scale.set_sensitive(mode == ChargeMode::Custom);
+        }
+
+        if let Some(group) = imp.charge_preset_group.borrow().as_ref() {
+            let _guard = group.freeze_notify();
+            group.set_active(mode.index());
         }
 
         *imp.refreshing.borrow_mut() = false;
+    }
+
+    fn set_custom_charge_limit_enabled(&self, enabled: bool) {
+        if let Some(scale) = self.imp().charge_scale.borrow().as_ref() {
+            scale.set_sensitive(enabled);
+        }
     }
 
     fn reconcile_charge_limit_after_write_failure(&self) {
@@ -404,3 +561,7 @@ impl Refreshable for PowerPage {
         self.refresh_data();
     }
 }
+
+#[cfg(test)]
+#[path = "tests/power_tests.rs"]
+mod tests;
