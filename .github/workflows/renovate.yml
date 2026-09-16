@@ -19,10 +19,7 @@ on:
         options: [debug, info, warn, error]
 
 permissions:
-  contents: write
-  pull-requests: write
-  issues: write
-  statuses: write
+  contents: read
 
 concurrency:
   group: renovate
@@ -41,7 +38,7 @@ jobs:
         uses: renovatebot/github-action@3064367f740a1a91cca218698a63902689cce200 # v46.1.20
         with:
           configurationFile: renovate.json
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.RENOVATE_TOKEN }}
           # renovate: datasource=docker depName=ghcr.io/renovatebot/renovate
           renovate-version: 43.278.3@sha256:8aa63d0b2a0ec65cc7a01d1584faab39a90046f0f840af28e98ae295dc12cd75
         env:
