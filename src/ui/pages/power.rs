@@ -398,6 +398,7 @@ impl PowerPage {
                 .sensitive(false)
                 .draw_value(true)
                 .digits(0)
+                .round_digits(0)
                 .build();
 
             // Connect charge scale to set charge limit

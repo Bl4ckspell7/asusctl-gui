@@ -182,6 +182,8 @@ impl SlashPage {
             .hexpand(true)
             .valign(gtk4::Align::Center)
             .draw_value(true)
+            .digits(0)
+            .round_digits(0)
             .build();
 
         // Connect brightness scale to set slash brightness
