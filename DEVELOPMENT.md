@@ -2,8 +2,8 @@
 
 ## Prerequisites
 
-- GTK4 4.22+
-- libadwaita 1.9+
+- GTK4 4.24+
+- libadwaita 1.10+
 - Rust 1.85+ (edition 2024)
 - asusctl 6.4.0 or newer installed and configured
 
@@ -51,8 +51,8 @@ Install Flatpak, flatpak-builder, and the GNOME SDK (Arch Linux):
 
 ```bash
 sudo pacman -S flatpak flatpak-builder
-flatpak install flathub org.gnome.Platform//50 org.gnome.Sdk//50
-flatpak install flathub org.freedesktop.Sdk.Extension.rust-stable//25.08
+flatpak install flathub org.gnome.Platform//51 org.gnome.Sdk//51
+flatpak install flathub org.freedesktop.Sdk.Extension.rust-stable//26.08
 ```
 
 ### Generate cargo sources
