@@ -29,6 +29,14 @@
       "matchStrings": [
         "#\\s*renovate:\\s*datasource=(?<datasource>\\S+)\\s+depName=(?<depName>\\S+)\\s*\\n\\s*renovate-version:\\s*(?<currentValue>[^\\s@]+)(@(?<currentDigest>sha256:[a-f0-9]+))?"
       ]
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/^com\\.github\\.bl4ckspell7\\.asusctl-gui\\.yml$/"],
+      "matchStrings": ["runtime-version: '(?<currentValue>\\d+)'"],
+      "depNameTemplate": "ghcr.io/flathub-infra/flatpak-github-actions",
+      "datasourceTemplate": "docker",
+      "extractVersionTemplate": "^gnome-(?<version>\\d+)$"
     }
   ],
   "packageRules": [
@@ -40,6 +48,27 @@
       "matchManagers": ["cargo"],
       "matchPackageNames": ["gtk4", "libadwaita", "glib-build-tools"],
       "groupName": "gtk-rs"
+    },
+    {
+      "matchDepNames": ["docker.io/library/archlinux"],
+      "versioning": "regex:^(?<compatibility>base)-(?<major>\\d{8})\\.(?<minor>\\d+)\\.(?<patch>\\d+)$"
+    },
+    {
+      "matchManagers": ["github-actions"],
+      "matchDepNames": ["ghcr.io/flathub-infra/flatpak-github-actions"],
+      "versioning": "regex:^(?<compatibility>gnome)-(?<major>\\d+)$"
+    },
+    {
+      "matchManagers": ["custom.regex"],
+      "matchDepNames": ["ghcr.io/flathub-infra/flatpak-github-actions"],
+      "pinDigests": false
+    },
+    {
+      "matchDepNames": ["ghcr.io/flathub-infra/flatpak-github-actions"],
+      "groupName": "GNOME runtime",
+      "prBodyNotes": [
+        "Also bump the gtk4/libadwaita feature gates in `Cargo.toml` and the versions in `DEVELOPMENT.md`."
+      ]
     }
   ]
 }
