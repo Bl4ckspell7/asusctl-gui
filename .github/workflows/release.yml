@@ -30,7 +30,7 @@ jobs:
     permissions:
       contents: write
     container:
-      image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-50@sha256:9b485ec99dd7a32966475e88e23add82e74162987e662dd0dcaaf26cdbb3de20
+      image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-51@sha256:78d969b18225ae107ca29497bf09c4a3f791e5f1838a9a912a529d0024fb6210
       options: --privileged
 
     steps:
