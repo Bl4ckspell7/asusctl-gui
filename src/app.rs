@@ -6,6 +6,7 @@ use libadwaita as adw;
 use crate::ui::AsusctlGuiWindow;
 
 pub const APP_NAME: &str = "ASUS Control";
+pub const APP_ID: &str = "com.github.bl4ckspell7.asusctl-gui";
 
 mod imp {
     use super::*;
@@ -27,6 +28,12 @@ mod imp {
         fn activate(&self) {
             let obj = self.obj();
             let app: &adw::Application = obj.upcast_ref();
+
+            // A second launch (e.g. the ROG key shortcut) raises the existing window
+            if let Some(window) = app.active_window() {
+                window.present();
+                return;
+            }
 
             // Set up keyboard shortcuts
             app.set_accels_for_action("win.quit", &["<Control>q"]);
@@ -52,7 +59,7 @@ glib::wrapper! {
 impl AsusctlGuiApp {
     pub fn new() -> Self {
         glib::Object::builder()
-            .property("application-id", "com.github.bl4ckspell7.asusctl-gui")
+            .property("application-id", APP_ID)
             .build()
     }
 }
