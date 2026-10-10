@@ -19,12 +19,14 @@
 //! - [`aura`] - Keyboard brightness and lighting control
 //! - [`power`] - Power profiles and charge control
 //! - [`slash`] - LED bar control
+//! - [`shortcut`] - GNOME custom shortcut that launches the app
 
 mod aura;
 mod dbus;
 mod dmi;
 mod error;
 mod power;
+mod shortcut;
 mod slash;
 mod system;
 mod types;
@@ -64,3 +66,6 @@ pub use slash::{
     set_slash_show_on_battery, set_slash_show_on_boot, set_slash_show_on_shutdown,
     set_slash_show_on_sleep,
 };
+
+// Re-export shortcut functions
+pub use shortcut::{add_launch_shortcut, get_launch_shortcut, is_gnome, remove_launch_shortcut};

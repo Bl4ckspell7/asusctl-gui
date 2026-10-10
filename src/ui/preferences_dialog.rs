@@ -3,8 +3,15 @@ use gtk4::gio;
 use gtk4::glib;
 use gtk4::subclass::prelude::*;
 use libadwaita as adw;
+use std::cell::Cell;
+use std::rc::Rc;
 
 use super::Page;
+use crate::backend;
+
+const SHORTCUT_OFF_SUBTITLE: &str = "Adds a custom shortcut in GNOME Settings";
+const SHORTCUT_NO_KEY_SUBTITLE: &str = "No key assigned, set one in GNOME Settings";
+const SHORTCUT_ERROR: &str = "Couldn’t change the keyboard shortcut";
 
 mod imp {
     use super::*;
@@ -161,6 +168,138 @@ impl PreferencesDialog {
         refresh_group.add(&refresh_interval_row);
         general_page.add(&refresh_group);
 
+        self.setup_shortcut_group(&general_page);
+
         self.add(&general_page);
+    }
+
+    /// Add the "Open with ROG key" switch, backed by a GNOME custom shortcut.
+    ///
+    /// The group stays hidden until the current shortcut has been read, and
+    /// for good if it cannot be read (not GNOME, or no host `gsettings`).
+    fn setup_shortcut_group(&self, page: &adw::PreferencesPage) {
+        if !backend::is_gnome() {
+            return;
+        }
+
+        let shortcut_group = adw::PreferencesGroup::builder()
+            .title("Keyboard Shortcut")
+            .description("Open ASUS Control from anywhere using a GNOME custom shortcut")
+            .visible(false)
+            .build();
+
+        let shortcut_row = adw::SwitchRow::builder().title("Open with ROG key").build();
+
+        shortcut_group.add(&shortcut_row);
+        page.add(&shortcut_group);
+
+        // Reading runs one host gsettings call per custom shortcut, so it must
+        // not run on the main loop.
+        let dialog_weak = self.downgrade();
+        let group_weak = shortcut_group.downgrade();
+        let row_weak = shortcut_row.downgrade();
+        glib::spawn_future_local(async move {
+            let result = gio::spawn_blocking(backend::get_launch_shortcut).await;
+
+            let (Some(dialog), Some(group), Some(row)) = (
+                dialog_weak.upgrade(),
+                group_weak.upgrade(),
+                row_weak.upgrade(),
+            ) else {
+                return;
+            };
+
+            match result {
+                Ok(Ok(shortcut)) => {
+                    // Connect only after the initial state is set, so loading
+                    // never writes the shortcut
+                    Self::apply_shortcut_state(&row, shortcut.as_deref());
+                    dialog.connect_shortcut_row(&row);
+                    group.set_visible(true);
+                }
+                Ok(Err(e)) => log::warn!("Keyboard shortcut unavailable: {e}"),
+                Err(_) => log::warn!("Keyboard shortcut unavailable: the reading thread panicked"),
+            }
+        });
+    }
+
+    fn connect_shortcut_row(&self, row: &adw::SwitchRow) {
+        // Set while the switch is updated programmatically, so reverting it
+        // after a failure does not write the shortcut again
+        let syncing = Rc::new(Cell::new(false));
+
+        let dialog_weak = self.downgrade();
+        row.connect_active_notify(move |row| {
+            if syncing.get() {
+                return;
+            }
+
+            let enable = row.is_active();
+            row.set_sensitive(false);
+
+            let dialog_weak = dialog_weak.clone();
+            let row_weak = row.downgrade();
+            let syncing = syncing.clone();
+            glib::spawn_future_local(async move {
+                let result = gio::spawn_blocking(move || {
+                    let change = if enable {
+                        backend::add_launch_shortcut()
+                    } else {
+                        backend::remove_launch_shortcut()
+                    };
+                    // Re-read even after a failure, the change may have partly applied
+                    (change, backend::get_launch_shortcut())
+                })
+                .await;
+
+                let Some(row) = row_weak.upgrade() else {
+                    return;
+                };
+                row.set_sensitive(true);
+
+                syncing.set(true);
+                let error = match result {
+                    Ok((change, Ok(binding))) => {
+                        Self::apply_shortcut_state(&row, binding.as_deref());
+                        change.err().map(|e| e.to_string())
+                    }
+                    Ok((_, Err(e))) => {
+                        row.set_active(!enable);
+                        Some(e.to_string())
+                    }
+                    Err(_) => {
+                        row.set_active(!enable);
+                        Some("the shortcut thread panicked".to_string())
+                    }
+                };
+                syncing.set(false);
+
+                if let Some(error) = error {
+                    log::warn!("{SHORTCUT_ERROR}: {error}");
+                    if let Some(dialog) = dialog_weak.upgrade() {
+                        dialog.add_toast(adw::Toast::new(SHORTCUT_ERROR));
+                    }
+                }
+            });
+        });
+    }
+
+    fn apply_shortcut_state(row: &adw::SwitchRow, binding: Option<&str>) {
+        row.set_active(binding.is_some());
+
+        let subtitle = match binding {
+            None => SHORTCUT_OFF_SUBTITLE.to_string(),
+            Some("") => SHORTCUT_NO_KEY_SUBTITLE.to_string(),
+            Some(binding) => format!("Shortcut: {}", Self::shortcut_label(binding)),
+        };
+        row.set_subtitle(&subtitle);
+    }
+
+    /// Human-readable label for a GNOME accelerator, e.g. `<Control><Alt>a` → `Ctrl+Alt+A`.
+    fn shortcut_label(binding: &str) -> String {
+        match gtk4::accelerator_parse(binding) {
+            Some((key, mods)) => gtk4::accelerator_get_label(key, mods).to_string(),
+            None => binding.to_string(),
+        }
     }
 }
