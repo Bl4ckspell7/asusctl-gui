@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.3] - 2026-10-10
+
+### Features
+
+- *(prefs)* Add ROG key shortcut to open the app
+
+### Bug Fixes
+
+- *(app)* Raise existing window instead of opening a second one
 ## [0.4.2] - 2026-09-18
 
 ### Bug Fixes
