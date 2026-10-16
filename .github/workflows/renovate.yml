@@ -40,7 +40,7 @@ jobs:
           configurationFile: renovate.json
           token: ${{ secrets.RENOVATE_TOKEN }}
           # renovate: datasource=docker depName=ghcr.io/renovatebot/renovate
-          renovate-version: 44.158.1@sha256:c64e6ca95349166fc4d3823e29c89417bb2f78f1f2f043449f798e69af3a1f33
+          renovate-version: 44.165.0@sha256:adad107c8eb9695a83619c1f84bcb75f93cde9a6d50b63824340dd4a0509597d
         env:
           RENOVATE_ALLOWED_COMMANDS: '["^bash scripts/regen-cargo-sources\\.sh$"]'
           LOG_LEVEL: ${{ inputs.logLevel || 'info' }}
