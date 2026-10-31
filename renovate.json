@@ -8,7 +8,9 @@
   "prConcurrentLimit": 0,
   "prHourlyLimit": 0,
   "lockFileMaintenance": {
-    "enabled": true
+    "description": "Refresh Cargo.lock once a week, all of Monday (UTC). The preset default 'before 4am on monday' is never hit: the scheduled workflow runs in the afternoon and starts hours late.",
+    "enabled": true,
+    "schedule": ["* * * * 1"]
   },
   "postUpgradeTasks": {
     "commands": ["bash scripts/regen-cargo-sources.sh"],
@@ -41,8 +43,9 @@
   ],
   "packageRules": [
     {
+      "description": "Digest updates once a week, all of Monday (UTC). The scheduled workflow starts hours late, so a narrow window was never hit.",
       "matchUpdateTypes": ["digest"],
-      "schedule": ["* 13-15 * * 1"]
+      "schedule": ["* * * * 1"]
     },
     {
       "matchManagers": ["cargo"],
