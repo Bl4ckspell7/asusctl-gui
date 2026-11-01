@@ -6,7 +6,7 @@ use std::sync::OnceLock;
 
 use super::dbus::{
     PLATFORM_INTERFACE, PLATFORM_PATH, get_aura_path, get_slash_path, has_armoury_interface,
-    read_dbus_property_at, run_asusctl,
+    list_armoury_attributes, read_dbus_property_at, run_asusctl,
 };
 use super::error::{AsusctlError, Result};
 use super::types::{AuraMode, KeyboardBrightness, SupportedFeatures, SystemInfo};
@@ -82,8 +82,14 @@ pub fn detect_features() -> &'static SupportedFeatures {
             }
         }
 
+        if features.has_armoury {
+            let attrs = list_armoury_attributes();
+            features.has_dgpu_disable = attrs.iter().any(|a| a == "dgpu_disable");
+            features.has_gpu_mux = attrs.iter().any(|a| a == "gpu_mux_mode");
+        }
+
         log::info!(
-            "Feature detection: asusctl={}, asusd={}, aura={}, platform={}, slash={}, charge_control={}, modes={}",
+            "Feature detection: asusctl={}, asusd={}, aura={}, platform={}, slash={}, charge_control={}, modes={}, dgpu_disable={}, gpu_mux={}",
             features.asusctl_installed,
             features.asusd_running,
             features.has_aura,
@@ -91,6 +97,8 @@ pub fn detect_features() -> &'static SupportedFeatures {
             features.has_slash,
             features.has_charge_control,
             features.aura_modes.len(),
+            features.has_dgpu_disable,
+            features.has_gpu_mux,
         );
 
         features
