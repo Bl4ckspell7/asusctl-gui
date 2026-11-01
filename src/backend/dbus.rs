@@ -12,6 +12,7 @@ pub const PLATFORM_INTERFACE: &str = "xyz.ljones.Platform";
 pub const AURA_BASE_PATH: &str = "/xyz/ljones/aura";
 pub const AURA_INTERFACE: &str = "xyz.ljones.Aura";
 pub const SLASH_INTERFACE: &str = "xyz.ljones.Slash";
+pub const ARMOURY_BASE_PATH: &str = "/xyz/ljones/asus_armoury";
 pub const ARMOURY_INTERFACE: &str = "xyz.ljones.AsusArmoury";
 
 // Cached D-Bus paths (discovered at runtime)
@@ -70,9 +71,7 @@ pub fn run_asusctl(args: &[&str]) -> Result<String> {
 ///   (asusctl is present but the daemon is down). See
 ///   [`stderr_reports_service_down`] — a bare mention of the daemon does not
 ///   qualify, and a successful run is never reclassified.
-/// - missing host `asusctl` -> `NotInstalled`. `flatpak-spawn --host` may
-///   either exit 127 with empty stdout or report that it failed to execute the
-///   child process because the file does not exist.
+/// - missing host `asusctl` -> `NotInstalled`. See [`host_binary_missing`].
 /// - non-zero exit with useful stdout -> stdout as-is, because some asusctl
 ///   queries return useful output despite their exit status.
 /// - any other failure -> `CommandFailed`, preserving trimmed stderr or an
@@ -91,17 +90,13 @@ fn interpret_asusctl_output(
         return Err(AsusctlError::ServiceNotRunning);
     }
 
-    let has_useful_stdout = !stdout.trim().is_empty();
-    let stderr = stderr.trim();
-    let stderr_lowercase = stderr.to_lowercase();
-    let flatpak_missing_host_binary = stderr_lowercase.contains("failed to execute child process")
-        && stderr_lowercase.contains("no such file or directory");
-
-    if (exit_code == Some(127) && !has_useful_stdout) || flatpak_missing_host_binary {
+    if host_binary_missing(exit_code, &stdout, stderr) {
         return Err(AsusctlError::NotInstalled);
     }
 
-    if has_useful_stdout {
+    let stderr = stderr.trim();
+
+    if !stdout.trim().is_empty() {
         return Ok(stdout);
     }
 
@@ -114,6 +109,18 @@ fn interpret_asusctl_output(
     };
 
     Err(AsusctlError::CommandFailed(message))
+}
+
+/// True when a failed host command could not run because its program is missing.
+///
+/// `flatpak-spawn --host` either exits 127 with empty stdout or reports that it
+/// failed to execute the child process because the file does not exist.
+pub fn host_binary_missing(exit_code: Option<i32>, stdout: &str, stderr: &str) -> bool {
+    let stderr_lowercase = stderr.to_lowercase();
+    let flatpak_missing_host_binary = stderr_lowercase.contains("failed to execute child process")
+        && stderr_lowercase.contains("no such file or directory");
+
+    (exit_code == Some(127) && stdout.trim().is_empty()) || flatpak_missing_host_binary
 }
 
 /// Messages that mean the daemon is unreachable, whoever produced them.
@@ -172,15 +179,24 @@ fn stderr_reports_service_down(stderr: &str) -> bool {
 
 /// Read a D-Bus property using busctl.
 pub fn read_dbus_property_at(path: &str, interface: &str, property: &str) -> Result<String> {
+    busctl_get_properties(path, interface, &[property])
+}
+
+/// Read several D-Bus properties with a single busctl call, one value per property.
+pub fn read_dbus_properties_at(
+    path: &str,
+    interface: &str,
+    properties: &[&str],
+) -> Result<Vec<String>> {
+    let output = busctl_get_properties(path, interface, properties)?;
+    split_property_values(&output, properties.len())
+}
+
+/// Run `busctl get-property` and return its trimmed stdout.
+fn busctl_get_properties(path: &str, interface: &str, properties: &[&str]) -> Result<String> {
     let output = host_command("busctl")
-        .args([
-            "--system",
-            "get-property",
-            DBUS_DEST,
-            path,
-            interface,
-            property,
-        ])
+        .args(["--system", "get-property", DBUS_DEST, path, interface])
+        .args(properties)
         .output()
         .map_err(|e| AsusctlError::CommandFailed(format!("busctl failed: {e}")))?;
 
@@ -193,6 +209,20 @@ pub fn read_dbus_property_at(path: &str, interface: &str, property: &str) -> Res
     }
 
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+}
+
+/// Split multi-property `busctl get-property` output into one value per line.
+fn split_property_values(output: &str, expected: usize) -> Result<Vec<String>> {
+    let values: Vec<String> = output.lines().map(|line| line.trim().to_string()).collect();
+
+    if values.len() != expected {
+        return Err(AsusctlError::ParseError(format!(
+            "Expected {expected} property values, got {}: {output}",
+            values.len()
+        )));
+    }
+
+    Ok(values)
 }
 
 /// Call a D-Bus method (no arguments) and return its stdout.
@@ -249,6 +279,17 @@ pub fn parse_dbus_uint(output: &str) -> Result<u32> {
     value
         .parse()
         .map_err(|_| AsusctlError::ParseError(format!("Invalid uint value: {value}")))
+}
+
+/// Parse a D-Bus int value (format: "i -1").
+pub fn parse_dbus_int(output: &str) -> Result<i32> {
+    let value = output
+        .strip_prefix("i ")
+        .ok_or_else(|| AsusctlError::ParseError(format!("Expected int, got: {output}")))?;
+
+    value
+        .parse()
+        .map_err(|_| AsusctlError::ParseError(format!("Invalid int value: {value}")))
 }
 
 // ============================================================================
@@ -338,32 +379,41 @@ pub fn get_slash_path() -> Option<&'static String> {
 /// implement the `xyz.ljones.AsusArmoury` interface, which indicates
 /// the asus-armoury kernel driver is loaded.
 pub fn has_armoury_interface() -> bool {
+    list_armoury_attributes().iter().any(|name| {
+        path_has_interface(
+            &format!("{ARMOURY_BASE_PATH}/{name}"),
+            ARMOURY_INTERFACE,
+            "Name",
+        )
+    })
+}
+
+/// List the firmware attributes asusd exposes under `/xyz/ljones/asus_armoury`.
+///
+/// Returns attribute names such as `dgpu_disable`, or an empty list when the
+/// daemon is unreachable.
+pub fn list_armoury_attributes() -> Vec<String> {
     let output = host_command("busctl")
         .args(["--system", "tree", "--list", DBUS_DEST])
         .output()
         .ok();
 
-    let Some(output) = output else {
-        return false;
-    };
-
-    if !output.status.success() {
-        return false;
-    }
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let paths: Vec<&str> = stdout
-        .lines()
-        .filter(|line| line.starts_with("/xyz/ljones/asus_armoury/"))
-        .collect();
-
-    for path in paths {
-        if path_has_interface(path, ARMOURY_INTERFACE, "Name") {
-            return true;
+    match output {
+        Some(out) if out.status.success() => {
+            parse_armoury_attribute_names(&String::from_utf8_lossy(&out.stdout))
         }
+        _ => Vec::new(),
     }
+}
 
-    false
+/// Extract attribute names from `busctl tree --list` output.
+fn parse_armoury_attribute_names(tree: &str) -> Vec<String> {
+    let armoury_prefix = format!("{ARMOURY_BASE_PATH}/");
+    tree.lines()
+        .filter_map(|line| line.trim().strip_prefix(&armoury_prefix))
+        .filter(|name| !name.is_empty() && !name.contains('/'))
+        .map(|name| name.to_string())
+        .collect()
 }
 
 #[cfg(test)]

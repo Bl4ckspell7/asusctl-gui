@@ -4,7 +4,7 @@ mod theme_switcher;
 mod toast;
 mod window;
 
-pub use pages::{AboutPage, AuraPage, PowerPage, SlashPage};
+pub use pages::{AboutPage, AuraPage, GpuPage, PowerPage, SlashPage};
 pub use preferences_dialog::PreferencesDialog;
 pub use theme_switcher::ThemeSwitcher;
 pub use window::AsusctlGuiWindow;
@@ -24,17 +24,19 @@ pub enum Page {
     About,
     Aura,
     Power,
+    Gpu,
     Slash,
 }
 
 impl Page {
-    pub const ALL: [Page; 4] = [Page::About, Page::Aura, Page::Power, Page::Slash];
+    pub const ALL: [Page; 5] = [Page::About, Page::Aura, Page::Power, Page::Gpu, Page::Slash];
 
     pub fn as_str(&self) -> &'static str {
         match self {
             Page::About => "about",
             Page::Aura => "aura",
             Page::Power => "power",
+            Page::Gpu => "gpu",
             Page::Slash => "slash",
         }
     }
@@ -44,6 +46,7 @@ impl Page {
             Page::About => "About",
             Page::Aura => "Aura",
             Page::Power => "Power",
+            Page::Gpu => "GPU",
             Page::Slash => "Slash",
         }
     }
@@ -53,6 +56,7 @@ impl Page {
             Page::About => "computer-symbolic",
             Page::Aura => "keyboard-brightness-symbolic",
             Page::Power => "gnome-power-manager-symbolic",
+            Page::Gpu => "video-display-symbolic",
             Page::Slash => "display-brightness-symbolic",
         }
     }
@@ -62,7 +66,8 @@ impl Page {
             Page::About => 0,
             Page::Aura => 1,
             Page::Power => 2,
-            Page::Slash => 3,
+            Page::Gpu => 3,
+            Page::Slash => 4,
         }
     }
 
@@ -71,7 +76,8 @@ impl Page {
             0 => Some(Page::About),
             1 => Some(Page::Aura),
             2 => Some(Page::Power),
-            3 => Some(Page::Slash),
+            3 => Some(Page::Gpu),
+            4 => Some(Page::Slash),
             _ => None,
         }
     }
@@ -85,6 +91,7 @@ impl TryFrom<&str> for Page {
             "about" => Ok(Page::About),
             "aura" => Ok(Page::Aura),
             "power" => Ok(Page::Power),
+            "gpu" => Ok(Page::Gpu),
             "slash" => Ok(Page::Slash),
             _ => Err(()),
         }

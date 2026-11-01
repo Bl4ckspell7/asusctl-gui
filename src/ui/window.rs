@@ -16,7 +16,8 @@ const MIN_HEIGHT: i32 = 314;
 const SIDEBAR_COLLAPSE_WIDTH: f64 = 620.0;
 
 use super::{
-    AboutPage, AuraPage, Page, PowerPage, PreferencesDialog, Refreshable, SlashPage, ThemeSwitcher,
+    AboutPage, AuraPage, GpuPage, Page, PowerPage, PreferencesDialog, Refreshable, SlashPage,
+    ThemeSwitcher,
 };
 
 mod imp {
@@ -36,6 +37,7 @@ mod imp {
         pub about_page: RefCell<Option<AboutPage>>,
         pub aura_page: RefCell<Option<AuraPage>>,
         pub power_page: RefCell<Option<PowerPage>>,
+        pub gpu_page: RefCell<Option<GpuPage>>,
         pub slash_page: RefCell<Option<SlashPage>>,
         // Track refresh timer source ID
         pub refresh_source_id: RefCell<Option<glib::SourceId>>,
@@ -141,6 +143,11 @@ impl AsusctlGuiWindow {
             }
             Page::Power => {
                 if let Some(p) = imp.power_page.borrow().as_ref() {
+                    p.refresh();
+                }
+            }
+            Page::Gpu => {
+                if let Some(p) = imp.gpu_page.borrow().as_ref() {
                     p.refresh();
                 }
             }
@@ -359,6 +366,7 @@ impl AsusctlGuiWindow {
         let about_page = AboutPage::new();
         let aura_page = AuraPage::new();
         let power_page = PowerPage::new();
+        let gpu_page = GpuPage::new();
         let slash_page = SlashPage::new();
 
         // Wrap each page in its own ScrolledWindow so scroll state is independent
@@ -366,6 +374,7 @@ impl AsusctlGuiWindow {
             (about_page.upcast_ref::<gtk4::Widget>(), Page::About),
             (aura_page.upcast_ref::<gtk4::Widget>(), Page::Aura),
             (power_page.upcast_ref::<gtk4::Widget>(), Page::Power),
+            (gpu_page.upcast_ref::<gtk4::Widget>(), Page::Gpu),
             (slash_page.upcast_ref::<gtk4::Widget>(), Page::Slash),
         ] {
             let scroll = gtk4::ScrolledWindow::builder()
@@ -380,6 +389,7 @@ impl AsusctlGuiWindow {
         imp.about_page.replace(Some(about_page));
         imp.aura_page.replace(Some(aura_page));
         imp.power_page.replace(Some(power_page));
+        imp.gpu_page.replace(Some(gpu_page));
         imp.slash_page.replace(Some(slash_page));
 
         // Swap loading screen for the full split view while retaining the toast overlay

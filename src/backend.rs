@@ -18,6 +18,7 @@
 //! - [`system`] - System info and feature detection
 //! - [`aura`] - Keyboard brightness and lighting control
 //! - [`power`] - Power profiles and charge control
+//! - [`gpu`] - GPU mode switching (dGPU / MUX)
 //! - [`slash`] - LED bar control
 //! - [`shortcut`] - GNOME custom shortcut that launches the app
 
@@ -25,6 +26,7 @@ mod aura;
 mod dbus;
 mod dmi;
 mod error;
+mod gpu;
 mod power;
 mod shortcut;
 mod slash;
@@ -35,7 +37,7 @@ pub(crate) use error::AsusctlError;
 
 // Re-export types actually used by UI
 pub use types::{
-    AuraDirection, AuraMode, AuraSpeed, KeyboardBrightness, PowerProfile, SlashMode,
+    AuraDirection, AuraMode, AuraSpeed, GpuMode, KeyboardBrightness, PowerProfile, SlashMode,
     SupportedFeatures,
 };
 
@@ -55,6 +57,12 @@ pub use aura::{
 pub use power::{
     get_charge_limit_dbus, get_profile_state, set_charge_limit, set_profile, set_profile_ac,
     set_profile_battery,
+};
+
+// Re-export GPU functions
+pub use gpu::{
+    GpuState, available_gpu_modes, get_gpu_state, is_shutdown_service_active, reboot_now,
+    request_session_reboot, set_gpu_mode,
 };
 
 // Re-export slash functions

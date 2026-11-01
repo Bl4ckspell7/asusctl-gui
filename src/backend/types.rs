@@ -448,6 +448,84 @@ impl SlashMode {
 }
 
 // ============================================================================
+// GPU Mode
+// ============================================================================
+
+/// GPU mode backed by the `dgpu_disable` and `gpu_mux_mode` firmware attributes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum GpuMode {
+    /// dGPU powered off, iGPU only
+    Integrated,
+    /// iGPU drives the display, dGPU on demand (Optimus)
+    #[default]
+    Hybrid,
+    /// dGPU drives the display directly through the MUX
+    Ultimate,
+}
+
+impl GpuMode {
+    /// All modes, in display order
+    pub const ALL: [GpuMode; 3] = [Self::Integrated, Self::Hybrid, Self::Ultimate];
+
+    pub fn label(&self) -> &'static str {
+        match self {
+            Self::Integrated => "Integrated",
+            Self::Hybrid => "Hybrid",
+            Self::Ultimate => "Ultimate",
+        }
+    }
+
+    pub fn description(&self) -> &'static str {
+        match self {
+            Self::Integrated => "Discrete GPU powered off for the best battery life",
+            Self::Hybrid => "Integrated GPU drives the display, discrete GPU on demand",
+            Self::Ultimate => "Discrete GPU drives the display for maximum performance",
+        }
+    }
+
+    /// Firmware attribute values as `(dgpu_disable, gpu_mux_mode)`.
+    pub fn attr_values(&self) -> (i32, i32) {
+        match self {
+            Self::Integrated => (1, 1),
+            Self::Hybrid => (0, 1),
+            Self::Ultimate => (0, 0),
+        }
+    }
+
+    /// Map firmware attribute values to a mode.
+    ///
+    /// Absent attributes count as inactive (`dgpu_disable` 0, `gpu_mux_mode` 1),
+    /// matching ROG Control Center.
+    pub fn from_attrs(dgpu_disable: Option<i32>, gpu_mux_mode: Option<i32>) -> Self {
+        if gpu_mux_mode == Some(0) {
+            Self::Ultimate
+        } else if dgpu_disable == Some(1) {
+            Self::Integrated
+        } else {
+            Self::Hybrid
+        }
+    }
+
+    /// Why this mode can't be reached with one reboot from `active`, if it can't.
+    ///
+    /// Leaving Ultimate for Integrated needs a Hybrid boot in between: the MUX
+    /// change only takes effect at boot, and until then the kernel refuses
+    /// `dgpu_disable=1` while the MUX is in dGPU mode (asusctl issue #408).
+    pub fn blocked_from(&self, active: GpuMode) -> Option<&'static str> {
+        match (active, self) {
+            (Self::Ultimate, Self::Integrated) => Some("Switch to Hybrid and reboot first"),
+            _ => None,
+        }
+    }
+}
+
+impl std::fmt::Display for GpuMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.label())
+    }
+}
+
+// ============================================================================
 // Supported Features
 // ============================================================================
 
@@ -465,6 +543,8 @@ pub struct SupportedFeatures {
     pub has_charge_control: bool,
     pub has_throttle_policy: bool,
     pub has_armoury: bool,
+    pub has_dgpu_disable: bool,
+    pub has_gpu_mux: bool,
 }
 
 // ============================================================================

@@ -197,3 +197,76 @@ fn live_service_errors_are_not_service_down() {
         );
     }
 }
+
+#[test]
+fn parse_dbus_int_accepts_positive_and_negative_values() {
+    assert_eq!(parse_dbus_int("i 1").unwrap(), 1);
+    assert_eq!(parse_dbus_int("i 87").unwrap(), 87);
+    assert_eq!(parse_dbus_int("i -1").unwrap(), -1);
+}
+
+#[test]
+fn parse_dbus_int_rejects_other_types_and_garbage() {
+    for output in ["u 1", "y 1", "1", "i ", "i one", "i 1.5"] {
+        assert!(
+            matches!(parse_dbus_int(output), Err(AsusctlError::ParseError(_))),
+            "expected parse error for: {output}"
+        );
+    }
+}
+
+#[test]
+fn armoury_attribute_names_come_from_direct_children() {
+    let tree = "/\n\
+                /xyz\n\
+                /xyz/ljones\n\
+                /xyz/ljones/asus_armoury\n\
+                /xyz/ljones/asus_armoury/dgpu_disable\n\
+                /xyz/ljones/asus_armoury/gpu_mux_mode\n\
+                /xyz/ljones/asus_armoury/ppt_pl1_spl\n\
+                /xyz/ljones/aura\n\
+                /xyz/ljones/aura/19b6_3_4\n";
+
+    assert_eq!(
+        parse_armoury_attribute_names(tree),
+        vec!["dgpu_disable", "gpu_mux_mode", "ppt_pl1_spl"]
+    );
+}
+
+#[test]
+fn armoury_attribute_names_empty_without_armoury_tree() {
+    assert!(parse_armoury_attribute_names("/\n/xyz/ljones\n/xyz/ljones/aura\n").is_empty());
+    assert!(parse_armoury_attribute_names("").is_empty());
+}
+
+#[test]
+fn host_binary_missing_detects_exit_127_and_flatpak_markers() {
+    assert!(host_binary_missing(Some(127), "", ""));
+    assert!(host_binary_missing(
+        Some(1),
+        "",
+        "Failed to execute child process “gnome-session-quit” (No such file or directory)"
+    ));
+    assert!(!host_binary_missing(Some(127), "some output", ""));
+    assert!(!host_binary_missing(Some(1), "", "Access denied"));
+}
+
+#[test]
+fn split_property_values_returns_one_value_per_line() {
+    assert_eq!(
+        split_property_values("i 1\ni -1", 2).unwrap(),
+        vec!["i 1", "i -1"]
+    );
+}
+
+#[test]
+fn split_property_values_rejects_wrong_count() {
+    assert!(matches!(
+        split_property_values("i 1", 2),
+        Err(AsusctlError::ParseError(_))
+    ));
+    assert!(matches!(
+        split_property_values("", 1),
+        Err(AsusctlError::ParseError(_))
+    ));
+}

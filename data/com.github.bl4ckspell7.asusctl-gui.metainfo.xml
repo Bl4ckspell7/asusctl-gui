@@ -11,8 +11,8 @@
     <description>
         <p>
             A GTK4/libadwaita GUI for asusctl that lets you control ASUS laptop
-            features including keyboard lighting (Aura), power profiles, and
-            the LED slash bar.
+            features including keyboard lighting (Aura), power profiles, GPU
+            mode switching, and the LED slash bar.
         </p>
     </description>
 

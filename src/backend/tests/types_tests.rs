@@ -466,6 +466,79 @@ fn test_aura_mode_data_default() {
 }
 
 // ------------------------------------------------------------------------
+// GpuMode Tests
+// ------------------------------------------------------------------------
+
+#[test]
+fn test_gpu_mode_attr_values() {
+    assert_eq!(GpuMode::Integrated.attr_values(), (1, 1));
+    assert_eq!(GpuMode::Hybrid.attr_values(), (0, 1));
+    assert_eq!(GpuMode::Ultimate.attr_values(), (0, 0));
+}
+
+#[test]
+fn test_gpu_mode_attr_values_round_trip() {
+    for mode in GpuMode::ALL {
+        let (dgpu_disable, gpu_mux_mode) = mode.attr_values();
+        assert_eq!(
+            GpuMode::from_attrs(Some(dgpu_disable), Some(gpu_mux_mode)),
+            mode
+        );
+    }
+}
+
+#[test]
+fn test_gpu_mode_from_attrs_without_mux() {
+    assert_eq!(GpuMode::from_attrs(Some(1), None), GpuMode::Integrated);
+    assert_eq!(GpuMode::from_attrs(Some(0), None), GpuMode::Hybrid);
+}
+
+#[test]
+fn test_gpu_mode_from_attrs_without_dgpu_disable() {
+    assert_eq!(GpuMode::from_attrs(None, Some(0)), GpuMode::Ultimate);
+    assert_eq!(GpuMode::from_attrs(None, Some(1)), GpuMode::Hybrid);
+    assert_eq!(GpuMode::from_attrs(None, None), GpuMode::Hybrid);
+}
+
+#[test]
+fn test_gpu_mode_mux_wins_over_dgpu_disable() {
+    // The kernel rejects this combination, but the MUX decides what drives the display.
+    assert_eq!(GpuMode::from_attrs(Some(1), Some(0)), GpuMode::Ultimate);
+}
+
+#[test]
+fn test_gpu_mode_integrated_blocked_from_ultimate() {
+    assert!(
+        GpuMode::Integrated
+            .blocked_from(GpuMode::Ultimate)
+            .is_some()
+    );
+}
+
+#[test]
+fn test_gpu_mode_other_switches_not_blocked() {
+    for active in GpuMode::ALL {
+        for target in GpuMode::ALL {
+            if (active, target) == (GpuMode::Ultimate, GpuMode::Integrated) {
+                continue;
+            }
+            assert_eq!(
+                target.blocked_from(active),
+                None,
+                "{active} -> {target} should be allowed"
+            );
+        }
+    }
+}
+
+#[test]
+fn test_gpu_mode_display() {
+    assert_eq!(GpuMode::Integrated.to_string(), "Integrated");
+    assert_eq!(GpuMode::Hybrid.to_string(), "Hybrid");
+    assert_eq!(GpuMode::Ultimate.to_string(), "Ultimate");
+}
+
+// ------------------------------------------------------------------------
 // SupportedFeatures Tests
 // ------------------------------------------------------------------------
 
@@ -484,6 +557,8 @@ fn test_supported_features_default() {
     assert!(!features.has_charge_control);
     assert!(!features.has_throttle_policy);
     assert!(!features.has_armoury);
+    assert!(!features.has_dgpu_disable);
+    assert!(!features.has_gpu_mux);
 }
 
 // ------------------------------------------------------------------------
