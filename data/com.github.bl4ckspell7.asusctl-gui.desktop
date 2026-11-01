@@ -1,10 +1,10 @@
 [Desktop Entry]
 Name=ASUS Control
-Comment=Control ASUS laptop features like keyboard lighting, power profiles, and LED bar
+Comment=Control ASUS laptop features like keyboard lighting, power profiles, GPU mode, and LED bar
 Type=Application
 Exec=asusctl-gui
 Icon=com.github.bl4ckspell7.asusctl-gui
 Terminal=false
 Categories=Settings;HardwareSettings;GTK;
-Keywords=asus;rog;aura;keyboard;lighting;power;
+Keywords=asus;rog;aura;keyboard;lighting;power;gpu;graphics;mux;
 StartupNotify=true

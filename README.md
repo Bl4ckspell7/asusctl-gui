@@ -10,6 +10,7 @@ A GTK4/Libadwaita GUI for [asusctl](https://github.com/OpenGamingCollective/asus
 - **About** - View laptop info, driver status, and supported features
 - **Aura** - Manage keyboard lighting modes and colors
 - **Power** - Set power profiles for AC/battery
+- **GPU** - Switch between Integrated, Hybrid and Ultimate GPU modes (applied on reboot)
 - **Slash** - Control slash lighting on the back of the display
 - **Keyboard shortcut** - Open the app with the ROG key (GNOME)
 
