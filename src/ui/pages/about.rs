@@ -342,6 +342,10 @@ impl AboutPage {
             ("Aura (Keyboard Lighting)", features.has_aura),
             ("Platform Control", features.has_platform),
             ("Fan Curves", features.has_fan_curves),
+            (
+                "GPU Switching",
+                features.has_dgpu_disable || features.has_gpu_mux,
+            ),
             ("Slash (LED Bar)", features.has_slash),
         ];
 
