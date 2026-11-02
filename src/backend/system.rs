@@ -4,6 +4,7 @@ use std::fs;
 use std::str::FromStr;
 use std::sync::OnceLock;
 
+use super::aura::detect_aura_power_zones;
 use super::dbus::{
     PLATFORM_INTERFACE, PLATFORM_PATH, get_aura_path, get_slash_path, has_armoury_interface,
     list_armoury_attributes, read_dbus_property_at, run_asusctl,
@@ -82,6 +83,11 @@ pub fn detect_features() -> &'static SupportedFeatures {
             }
         }
 
+        // Power states are written through the CLI, so they need asusctl too
+        if features.has_aura && features.asusctl_installed {
+            features.aura_power_zones = detect_aura_power_zones();
+        }
+
         if features.has_armoury {
             let attrs = list_armoury_attributes();
             features.has_dgpu_disable = attrs.iter().any(|a| a == "dgpu_disable");
@@ -89,7 +95,7 @@ pub fn detect_features() -> &'static SupportedFeatures {
         }
 
         log::info!(
-            "Feature detection: asusctl={}, asusd={}, aura={}, platform={}, slash={}, charge_control={}, modes={}, dgpu_disable={}, gpu_mux={}",
+            "Feature detection: asusctl={}, asusd={}, aura={}, platform={}, slash={}, charge_control={}, modes={}, aura_power_zones={}, dgpu_disable={}, gpu_mux={}",
             features.asusctl_installed,
             features.asusd_running,
             features.has_aura,
@@ -97,6 +103,7 @@ pub fn detect_features() -> &'static SupportedFeatures {
             features.has_slash,
             features.has_charge_control,
             features.aura_modes.len(),
+            features.aura_power_zones.len(),
             features.has_dgpu_disable,
             features.has_gpu_mux,
         );

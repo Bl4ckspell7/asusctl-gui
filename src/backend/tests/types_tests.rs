@@ -466,6 +466,46 @@ fn test_aura_mode_data_default() {
 }
 
 // ------------------------------------------------------------------------
+// AuraPowerZone Tests
+// ------------------------------------------------------------------------
+
+#[test]
+fn test_aura_power_zone_from_dbus_value() {
+    assert_eq!(AuraPowerZone::from_dbus_value(0), Some(AuraPowerZone::Logo));
+    assert_eq!(
+        AuraPowerZone::from_dbus_value(1),
+        Some(AuraPowerZone::Keyboard)
+    );
+    assert_eq!(
+        AuraPowerZone::from_dbus_value(2),
+        Some(AuraPowerZone::Lightbar)
+    );
+    assert_eq!(AuraPowerZone::from_dbus_value(3), Some(AuraPowerZone::Lid));
+    assert_eq!(
+        AuraPowerZone::from_dbus_value(4),
+        Some(AuraPowerZone::RearGlow)
+    );
+    assert_eq!(AuraPowerZone::from_dbus_value(6), Some(AuraPowerZone::Ally));
+}
+
+#[test]
+fn test_aura_power_zone_from_dbus_value_unsupported() {
+    // 5 is the pre-2021 keyboard-and-lightbar zone, 255 means none
+    assert_eq!(AuraPowerZone::from_dbus_value(5), None);
+    assert_eq!(AuraPowerZone::from_dbus_value(255), None);
+}
+
+#[test]
+fn test_aura_power_zone_cli_name() {
+    assert_eq!(AuraPowerZone::Logo.cli_name(), "logo");
+    assert_eq!(AuraPowerZone::Keyboard.cli_name(), "keyboard");
+    assert_eq!(AuraPowerZone::Lightbar.cli_name(), "lightbar");
+    assert_eq!(AuraPowerZone::Lid.cli_name(), "lid");
+    assert_eq!(AuraPowerZone::RearGlow.cli_name(), "rear-glow");
+    assert_eq!(AuraPowerZone::Ally.cli_name(), "ally");
+}
+
+// ------------------------------------------------------------------------
 // GpuMode Tests
 // ------------------------------------------------------------------------
 
@@ -554,6 +594,7 @@ fn test_supported_features_default() {
     assert!(features.keyboard_brightness_levels.is_empty());
     assert!(features.aura_modes.is_empty());
     assert!(features.aura_zones.is_empty());
+    assert!(features.aura_power_zones.is_empty());
     assert!(!features.has_charge_control);
     assert!(!features.has_throttle_policy);
     assert!(!features.has_armoury);

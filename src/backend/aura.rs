@@ -3,10 +3,20 @@
 use std::str::FromStr;
 
 use super::dbus::{
-    AURA_INTERFACE, get_aura_path, parse_dbus_uint, read_dbus_property_at, run_asusctl,
+    AURA_INTERFACE, get_aura_path, parse_dbus_uint, read_dbus_properties_at, read_dbus_property_at,
+    run_asusctl,
 };
 use super::error::{AsusctlError, Result};
-use super::types::{AuraDirection, AuraMode, AuraModeData, AuraSpeed, KeyboardBrightness};
+use super::types::{
+    AuraDirection, AuraMode, AuraModeData, AuraPowerState, AuraPowerZone, AuraSpeed,
+    KeyboardBrightness,
+};
+
+/// `DeviceType` of 2021+ laptop keyboards, the only ones `asusctl aura power` handles.
+const LAPTOP_KEYBOARD_2021: u32 = 0;
+
+/// D-Bus signature of the LedPower property.
+const LED_POWER_SIGNATURE: &str = "(a(ubbbb))";
 
 // ============================================================================
 // Public API - Keyboard Brightness
@@ -14,8 +24,7 @@ use super::types::{AuraDirection, AuraMode, AuraModeData, AuraSpeed, KeyboardBri
 
 /// Get current keyboard brightness via D-Bus.
 pub fn get_keyboard_brightness_dbus() -> Result<KeyboardBrightness> {
-    let path = get_aura_path()
-        .ok_or_else(|| AsusctlError::CommandFailed("Aura D-Bus path not found".to_string()))?;
+    let path = aura_path()?;
     let output = read_dbus_property_at(path, AURA_INTERFACE, "Brightness")?;
     let value = parse_dbus_uint(&output)?;
 
@@ -46,8 +55,7 @@ pub fn set_keyboard_brightness(level: KeyboardBrightness) -> Result<()> {
 /// Parses the LedModeData property which has signature (uu(yyy)(yyy)ss):
 /// (mode, zone, (r1,g1,b1), (r2,g2,b2), speed, direction)
 pub fn get_aura_mode_data_dbus() -> Result<AuraModeData> {
-    let path = get_aura_path()
-        .ok_or_else(|| AsusctlError::CommandFailed("Aura D-Bus path not found".to_string()))?;
+    let path = aura_path()?;
     let output = read_dbus_property_at(path, AURA_INTERFACE, "LedModeData")?;
 
     // Parse output like: (uu(yyy)(yyy)ss) 1 0 255 0 255 255 0 0 "Med" "Right"
@@ -155,6 +163,134 @@ pub fn get_aura_mode_help(mode: AuraMode) -> Option<String> {
     run_asusctl(&["aura", "effect", mode.cli_name(), "--help"])
         .ok()
         .map(|s| s.trim().to_string())
+}
+
+// ============================================================================
+// Public API - Power States
+// ============================================================================
+
+/// Get when each lighting zone is on (boot, awake, sleep, shutdown) via D-Bus.
+pub fn get_aura_power_states() -> Result<Vec<AuraPowerState>> {
+    let path = aura_path()?;
+    let output = read_dbus_property_at(path, AURA_INTERFACE, "LedPower")?;
+    parse_led_power(&output)
+}
+
+/// Set when a zone's lighting is on.
+///
+/// The CLI writes all four states of the zone at once: an omitted flag means off.
+pub fn set_aura_power_state(state: AuraPowerState) -> Result<()> {
+    run_asusctl(&aura_power_args(&state))?;
+    log::info!(
+        "Set {} lighting power states to {state:?}",
+        state.zone.label()
+    );
+    Ok(())
+}
+
+/// Zones whose power states can be set, or none if this keyboard isn't supported.
+///
+/// `asusctl aura power` only handles 2021+ keyboards; for other device types it
+/// exits successfully without changing anything.
+pub(super) fn detect_aura_power_zones() -> Vec<AuraPowerZone> {
+    let Some(path) = get_aura_path() else {
+        return Vec::new();
+    };
+
+    let values = match read_dbus_properties_at(path, AURA_INTERFACE, &["DeviceType", "LedPower"]) {
+        Ok(values) => values,
+        Err(e) => {
+            log::warn!("Failed to read Aura device type and power states: {e}");
+            return Vec::new();
+        }
+    };
+
+    if parse_dbus_uint(&values[0]).ok() != Some(LAPTOP_KEYBOARD_2021) {
+        return Vec::new();
+    }
+
+    match parse_led_power(&values[1]) {
+        Ok(states) => states.into_iter().map(|state| state.zone).collect(),
+        Err(e) => {
+            log::warn!("Failed to parse Aura power states: {e}");
+            Vec::new()
+        }
+    }
+}
+
+// ============================================================================
+// Private Helpers
+// ============================================================================
+
+/// The Aura D-Bus path of the keyboard.
+fn aura_path() -> Result<&'static String> {
+    get_aura_path()
+        .ok_or_else(|| AsusctlError::CommandFailed("Aura D-Bus path not found".to_string()))
+}
+
+/// Parse the LedPower property.
+///
+/// busctl prints `(a(ubbbb)) 1 1 true true true true`: the zone count, then
+/// `zone boot awake sleep shutdown` per zone. Zones this app doesn't know are skipped.
+fn parse_led_power(output: &str) -> Result<Vec<AuraPowerState>> {
+    let parse_error = || AsusctlError::ParseError(format!("Invalid LedPower format: {output}"));
+
+    let mut tokens = output.split_whitespace();
+    if tokens.next() != Some(LED_POWER_SIGNATURE) {
+        return Err(parse_error());
+    }
+
+    let count: usize = tokens
+        .next()
+        .and_then(|token| token.parse().ok())
+        .ok_or_else(parse_error)?;
+    let values: Vec<&str> = tokens.collect();
+    if Some(values.len()) != count.checked_mul(5) {
+        return Err(parse_error());
+    }
+
+    let parse_bool = |token: &str| match token {
+        "true" => Ok(true),
+        "false" => Ok(false),
+        _ => Err(parse_error()),
+    };
+
+    let mut states = Vec::new();
+    for chunk in values.chunks(5) {
+        let zone_id: u32 = chunk[0].parse().map_err(|_| parse_error())?;
+        let boot = parse_bool(chunk[1])?;
+        let awake = parse_bool(chunk[2])?;
+        let sleep = parse_bool(chunk[3])?;
+        let shutdown = parse_bool(chunk[4])?;
+
+        if let Some(zone) = AuraPowerZone::from_dbus_value(zone_id) {
+            states.push(AuraPowerState {
+                zone,
+                boot,
+                awake,
+                sleep,
+                shutdown,
+            });
+        }
+    }
+
+    Ok(states)
+}
+
+/// Build `asusctl aura power <zone> [--boot] [--awake] [--sleep] [--shutdown]`.
+fn aura_power_args(state: &AuraPowerState) -> Vec<&'static str> {
+    let mut args = vec!["aura", "power", state.zone.cli_name()];
+    for (enabled, flag) in [
+        (state.boot, "--boot"),
+        (state.awake, "--awake"),
+        (state.sleep, "--sleep"),
+        (state.shutdown, "--shutdown"),
+    ] {
+        if enabled {
+            args.push(flag);
+        }
+    }
+    args
 }
 
 #[cfg(test)]
