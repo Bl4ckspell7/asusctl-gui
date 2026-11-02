@@ -6,8 +6,47 @@ use gtk4::subclass::prelude::*;
 use libadwaita as adw;
 use std::cell::{Cell, RefCell};
 
-use crate::backend::{self, AuraDirection, AuraMode, AuraSpeed, KeyboardBrightness};
+use crate::backend::{
+    self, AsusctlError, AuraDirection, AuraMode, AuraPowerState, AuraPowerZone, AuraSpeed,
+    KeyboardBrightness,
+};
 use crate::ui::{Refreshable, show_backend_error};
+
+/// One switch per lighting power state, tied to the state field it shows.
+struct PowerStateRow {
+    title: &'static str,
+    subtitle: &'static str,
+    get: fn(&AuraPowerState) -> bool,
+    set: fn(&mut AuraPowerState, bool),
+}
+
+/// Power state switches in display order
+const POWER_STATE_ROWS: [PowerStateRow; 4] = [
+    PowerStateRow {
+        title: "Awake",
+        subtitle: "While the laptop is in use",
+        get: |state| state.awake,
+        set: |state, value| state.awake = value,
+    },
+    PowerStateRow {
+        title: "Boot",
+        subtitle: "While the laptop starts up",
+        get: |state| state.boot,
+        set: |state, value| state.boot = value,
+    },
+    PowerStateRow {
+        title: "Sleep",
+        subtitle: "While the laptop is suspended",
+        get: |state| state.sleep,
+        set: |state, value| state.sleep = value,
+    },
+    PowerStateRow {
+        title: "Shutdown",
+        subtitle: "While the laptop shuts down",
+        get: |state| state.shutdown,
+        set: |state, value| state.shutdown = value,
+    },
+];
 
 mod imp {
     use super::*;
@@ -28,6 +67,7 @@ mod imp {
         pub color2_row: RefCell<Option<adw::ActionRow>>,
         pub zone_dropdown: RefCell<Option<gtk4::DropDown>>,
         pub color_group: RefCell<Option<adw::PreferencesGroup>>,
+        pub power_switches: RefCell<Vec<(AuraPowerZone, [adw::SwitchRow; 4])>>,
         pub selected_mode: RefCell<AuraMode>,
         pub confirmed_mode: Cell<AuraMode>,
         pub last_successful_zone: Cell<u32>,
@@ -399,6 +439,15 @@ impl AuraPage {
 
         self.append(&color_group);
 
+        // Lighting power state groups (one per zone, 2021+ keyboards only)
+        let mut power_switches = Vec::new();
+        for &zone in &features.aura_power_zones {
+            let (group, switches) = self.build_power_state_group(zone);
+            self.append(&group);
+            power_switches.push((zone, switches));
+        }
+        imp.power_switches.replace(power_switches);
+
         // Store references
         imp.mode_combo.replace(Some(mode_combo));
         imp.supported_modes.replace(supported_modes);
@@ -415,6 +464,76 @@ impl AuraPage {
 
         // Set default mode and visibility
         self.update_mode_visibility();
+    }
+
+    /// Build the group of power state switches for one lighting zone.
+    fn build_power_state_group(
+        &self,
+        zone: AuraPowerZone,
+    ) -> (adw::PreferencesGroup, [adw::SwitchRow; 4]) {
+        let group = adw::PreferencesGroup::builder()
+            .title(format!("{} Lighting States", zone.label()))
+            .description("Choose when the lighting is on. Effect, color and brightness apply to every state.")
+            .build();
+
+        let switches = POWER_STATE_ROWS.each_ref().map(|entry| {
+            adw::SwitchRow::builder()
+                .title(entry.title)
+                .subtitle(entry.subtitle)
+                .build()
+        });
+
+        for (entry, row) in POWER_STATE_ROWS.iter().zip(&switches) {
+            let this = self.clone();
+            let set = entry.set;
+            row.connect_active_notify(move |row| {
+                if *this.imp().refreshing.borrow() {
+                    return;
+                }
+                this.change_power_state(zone, set, row);
+            });
+            group.add(row);
+        }
+
+        (group, switches)
+    }
+
+    /// Change one power state of a zone.
+    ///
+    /// The CLI writes all four states of a zone at once, so read the current
+    /// states first and change only the toggled one, instead of trusting what
+    /// the other switches show.
+    fn change_power_state(
+        &self,
+        zone: AuraPowerZone,
+        set: fn(&mut AuraPowerState, bool),
+        row: &adw::SwitchRow,
+    ) {
+        let active = row.is_active();
+        let result = backend::get_aura_power_states().and_then(|states| {
+            let mut state = states
+                .into_iter()
+                .find(|state| state.zone == zone)
+                .ok_or_else(|| {
+                    AsusctlError::CommandFailed(format!(
+                        "{} lighting power states not found",
+                        zone.label()
+                    ))
+                })?;
+            set(&mut state, active);
+            backend::set_aura_power_state(state)
+        });
+
+        if let Err(e) = result {
+            log::error!("Failed to set Aura power states: {e}");
+            show_backend_error(self, "Couldn’t change when the lighting is on", &e);
+            if !self.reconcile_power_states_after_write_failure() {
+                // Couldn't read the real states either: undo the toggle
+                *self.imp().refreshing.borrow_mut() = true;
+                row.set_active(!active);
+                *self.imp().refreshing.borrow_mut() = false;
+            }
+        }
     }
 
     /// Show/hide rows based on the selected mode
@@ -535,6 +654,38 @@ impl AuraPage {
             Ok(brightness) => self.apply_keyboard_brightness(brightness),
             Err(e) => {
                 log::error!("Failed to reconcile keyboard brightness after write failure: {e}");
+            }
+        }
+    }
+
+    fn apply_aura_power_states(&self, states: &[AuraPowerState]) {
+        let imp = self.imp();
+        *imp.refreshing.borrow_mut() = true;
+
+        for (zone, switches) in imp.power_switches.borrow().iter() {
+            let Some(state) = states.iter().find(|state| state.zone == *zone) else {
+                continue;
+            };
+
+            let _guards: Vec<_> = switches.iter().map(|row| row.freeze_notify()).collect();
+            for (entry, row) in POWER_STATE_ROWS.iter().zip(switches) {
+                row.set_active((entry.get)(state));
+            }
+        }
+
+        *imp.refreshing.borrow_mut() = false;
+    }
+
+    /// Re-read the power states after a failed write. Returns whether the read worked.
+    fn reconcile_power_states_after_write_failure(&self) -> bool {
+        match backend::get_aura_power_states() {
+            Ok(states) => {
+                self.apply_aura_power_states(&states);
+                true
+            }
+            Err(e) => {
+                log::error!("Failed to reconcile Aura power states after write failure: {e}");
+                false
             }
         }
     }
@@ -689,6 +840,16 @@ impl AuraPage {
                 log::error!("Failed to get aura mode data: {e}");
             }
         }
+
+        // Get lighting power states via D-Bus (only if the switches exist)
+        if !imp.power_switches.borrow().is_empty() {
+            match backend::get_aura_power_states() {
+                Ok(states) => self.apply_aura_power_states(&states),
+                Err(e) => {
+                    log::error!("Failed to get Aura power states: {e}");
+                }
+            }
+        }
     }
 }
 
@@ -710,3 +871,7 @@ impl Refreshable for AuraPage {
         self.refresh_data();
     }
 }
+
+#[cfg(test)]
+#[path = "tests/aura_tests.rs"]
+mod tests;
