@@ -37,8 +37,8 @@ pub(crate) use error::AsusctlError;
 
 // Re-export types actually used by UI
 pub use types::{
-    AuraDirection, AuraMode, AuraSpeed, GpuMode, KeyboardBrightness, PowerProfile, SlashMode,
-    SupportedFeatures,
+    AuraDirection, AuraMode, AuraPowerState, AuraPowerZone, AuraSpeed, GpuMode, KeyboardBrightness,
+    PowerProfile, SlashMode, SupportedFeatures,
 };
 
 // Re-export system functions
@@ -49,8 +49,8 @@ pub use dmi::{format_bios, get_dmi_info, read_serial_number};
 
 // Re-export aura functions
 pub use aura::{
-    get_aura_mode_data_dbus, get_aura_mode_help, get_keyboard_brightness_dbus, set_aura_mode,
-    set_keyboard_brightness,
+    get_aura_mode_data_dbus, get_aura_mode_help, get_aura_power_states,
+    get_keyboard_brightness_dbus, set_aura_mode, set_aura_power_state, set_keyboard_brightness,
 };
 
 // Re-export power functions

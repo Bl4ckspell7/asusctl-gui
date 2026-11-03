@@ -349,6 +349,72 @@ pub struct AuraModeData {
 }
 
 // ============================================================================
+// Aura Power States
+// ============================================================================
+
+/// Lighting zone whose power states can be set with `asusctl aura power`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AuraPowerZone {
+    Logo,
+    Keyboard,
+    Lightbar,
+    Lid,
+    RearGlow,
+    Ally,
+}
+
+impl AuraPowerZone {
+    /// Map the D-Bus zone id to a zone.
+    ///
+    /// Id 5 (keyboard and lightbar combined) only exists on pre-2021 keyboards,
+    /// which `asusctl aura power` does not handle, so it maps to `None`.
+    pub fn from_dbus_value(value: u32) -> Option<Self> {
+        match value {
+            0 => Some(Self::Logo),
+            1 => Some(Self::Keyboard),
+            2 => Some(Self::Lightbar),
+            3 => Some(Self::Lid),
+            4 => Some(Self::RearGlow),
+            6 => Some(Self::Ally),
+            _ => None,
+        }
+    }
+
+    /// Returns the CLI subcommand name for `asusctl aura power <zone>`
+    pub fn cli_name(&self) -> &'static str {
+        match self {
+            Self::Logo => "logo",
+            Self::Keyboard => "keyboard",
+            Self::Lightbar => "lightbar",
+            Self::Lid => "lid",
+            Self::RearGlow => "rear-glow",
+            Self::Ally => "ally",
+        }
+    }
+
+    pub fn label(&self) -> &'static str {
+        match self {
+            Self::Logo => "Logo",
+            Self::Keyboard => "Keyboard",
+            Self::Lightbar => "Lightbar",
+            Self::Lid => "Lid",
+            Self::RearGlow => "Rear Glow",
+            Self::Ally => "Ally",
+        }
+    }
+}
+
+/// When a zone's lighting is on, read from the D-Bus LedPower property
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AuraPowerState {
+    pub zone: AuraPowerZone,
+    pub boot: bool,
+    pub awake: bool,
+    pub sleep: bool,
+    pub shutdown: bool,
+}
+
+// ============================================================================
 // Slash Mode
 // ============================================================================
 
@@ -540,6 +606,7 @@ pub struct SupportedFeatures {
     pub keyboard_brightness_levels: Vec<KeyboardBrightness>,
     pub aura_modes: Vec<AuraMode>,
     pub aura_zones: Vec<String>,
+    pub aura_power_zones: Vec<AuraPowerZone>,
     pub has_charge_control: bool,
     pub has_throttle_policy: bool,
     pub has_armoury: bool,
