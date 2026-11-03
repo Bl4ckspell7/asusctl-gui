@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.0] - 2026-11-03
+
+### Features
+
+- *(backend)* Add GPU mode switching via asus-armoury
+- *(ui)* Add GPU page with reboot button
+- *(backend)* Read and set Aura lighting power states
+- *(ui)* Add lighting state switches to the Aura page
+
+### Documentation
+
+- Mention GPU switching in README and app metadata
+- Mention Aura lighting states in README
 ## [0.4.3] - 2026-10-10
 
 ### Features
