@@ -309,3 +309,11 @@ fn split_property_values_rejects_wrong_count() {
         Err(AsusctlError::ParseError(_))
     ));
 }
+
+#[test]
+fn armoury_attr_path_appends_the_attribute_name() {
+    assert_eq!(
+        armoury_attr_path("boot_sound"),
+        "/xyz/ljones/asus_armoury/boot_sound"
+    );
+}

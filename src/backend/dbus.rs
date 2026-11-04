@@ -407,13 +407,14 @@ pub fn get_slash_path() -> Option<&'static String> {
 /// implement the `xyz.ljones.AsusArmoury` interface, which indicates
 /// the asus-armoury kernel driver is loaded.
 pub fn has_armoury_interface() -> bool {
-    list_armoury_attributes().iter().any(|name| {
-        path_has_interface(
-            &format!("{ARMOURY_BASE_PATH}/{name}"),
-            ARMOURY_INTERFACE,
-            "Name",
-        )
-    })
+    list_armoury_attributes()
+        .iter()
+        .any(|name| path_has_interface(&armoury_attr_path(name), ARMOURY_INTERFACE, "Name"))
+}
+
+/// D-Bus path of a firmware attribute, e.g. `/xyz/ljones/asus_armoury/boot_sound`.
+pub fn armoury_attr_path(name: &str) -> String {
+    format!("{ARMOURY_BASE_PATH}/{name}")
 }
 
 /// List the firmware attributes asusd exposes under `/xyz/ljones/asus_armoury`.

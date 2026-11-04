@@ -19,6 +19,7 @@
 //! - [`aura`] - Keyboard brightness and lighting control
 //! - [`power`] - Power profiles and charge control
 //! - [`gpu`] - GPU mode switching (dGPU / MUX)
+//! - [`firmware`] - Firmware settings (boot sound)
 //! - [`slash`] - LED bar control
 //! - [`shortcut`] - GNOME custom shortcut that launches the app
 
@@ -26,6 +27,7 @@ mod aura;
 mod dbus;
 mod dmi;
 mod error;
+mod firmware;
 mod gpu;
 mod power;
 mod shortcut;
@@ -58,6 +60,9 @@ pub use power::{
     get_charge_limit_dbus, get_profile_state, set_charge_limit, set_profile, set_profile_ac,
     set_profile_battery,
 };
+
+// Re-export firmware functions
+pub use firmware::{get_boot_sound, set_boot_sound};
 
 // Re-export GPU functions
 pub use gpu::{

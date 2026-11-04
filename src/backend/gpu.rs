@@ -7,7 +7,7 @@
 //! currently active value clears the queued one.
 
 use super::dbus::{
-    ARMOURY_BASE_PATH, ARMOURY_INTERFACE, host_binary_missing, host_command, parse_dbus_int,
+    ARMOURY_INTERFACE, armoury_attr_path, host_binary_missing, host_command, parse_dbus_int,
     read_dbus_properties_at, run_asusctl,
 };
 use super::error::{AsusctlError, Result};
@@ -144,7 +144,7 @@ pub fn reboot_now() -> Result<()> {
 /// Read `(CurrentValue, QueuedGpuValue)` of a GPU attribute.
 fn read_attr_values(attr: &str) -> Result<(i32, i32)> {
     let values = read_dbus_properties_at(
-        &format!("{ARMOURY_BASE_PATH}/{attr}"),
+        &armoury_attr_path(attr),
         ARMOURY_INTERFACE,
         &["CurrentValue", "QueuedGpuValue"],
     )?;
