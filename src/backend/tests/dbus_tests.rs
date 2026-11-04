@@ -108,6 +108,45 @@ fn success_returns_stdout() {
 }
 
 #[test]
+fn error_line_on_stdout_fails_despite_exit_zero() {
+    // asusctl prints its own errors to stdout and still exits 0.
+    let stdout = "\nError: Firmware attribute 'does_not_exist_attr' not found\n\n\
+                  Software version: 6.5.0\n  Product family: ROG Zephyrus G14\n";
+    let result = interpret_asusctl_output(true, Some(0), stdout.to_string(), "");
+    assert!(matches!(
+        result,
+        Err(AsusctlError::CommandFailed(message))
+            if message == "Firmware attribute 'does_not_exist_attr' not found"
+    ));
+}
+
+#[test]
+fn daemon_unreachable_error_line_is_service_not_running() {
+    let stdout = "\nError: org.freedesktop.DBus.Error.ServiceUnknown: The name \
+                  xyz.ljones.Asusd was not provided by any .service files\n";
+    let result = interpret_asusctl_output(true, Some(0), stdout.to_string(), "");
+    assert!(matches!(result, Err(AsusctlError::ServiceNotRunning)));
+}
+
+#[test]
+fn version_mismatch_on_stdout_fails() {
+    let stdout = "Version mismatch: asusctl = 6.5.0, asusd = 6.4.0\n";
+    let result = interpret_asusctl_output(true, Some(0), stdout.to_string(), "");
+    assert!(matches!(
+        result,
+        Err(AsusctlError::CommandFailed(message))
+            if message == "Version mismatch: asusctl = 6.5.0, asusd = 6.4.0"
+    ));
+}
+
+#[test]
+fn error_word_inside_a_line_is_not_a_failure() {
+    let stdout = "Active profile: Quiet\nLast Error: none\n";
+    let result = interpret_asusctl_output(true, Some(0), stdout.to_string(), "");
+    assert_eq!(result.unwrap(), stdout);
+}
+
+#[test]
 fn success_with_asusd_in_stderr_returns_stdout() {
     // A successful run is never reclassified, however chatty its stderr.
     let result = interpret_asusctl_output(

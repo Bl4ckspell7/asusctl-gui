@@ -67,10 +67,15 @@ pub fn run_asusctl(args: &[&str]) -> Result<String> {
 /// Classify an asusctl invocation's result. Separated from process spawning so
 /// the logic is unit-testable.
 ///
+/// - `Error: <reason>` or a version-mismatch notice on stdout -> failure, even
+///   with exit status 0: asusctl reports its own errors that way and still
+///   exits 0. See [`stdout_reported_error`]. The reason maps to
+///   `ServiceNotRunning` when it shows the daemon is unreachable, otherwise to
+///   `CommandFailed`.
 /// - failure whose stderr shows `asusd` is unreachable -> `ServiceNotRunning`
 ///   (asusctl is present but the daemon is down). See
 ///   [`stderr_reports_service_down`] — a bare mention of the daemon does not
-///   qualify, and a successful run is never reclassified.
+///   qualify, and stderr never turns a successful run into a failure.
 /// - missing host `asusctl` -> `NotInstalled`. See [`host_binary_missing`].
 /// - non-zero exit with useful stdout -> stdout as-is, because some asusctl
 ///   queries return useful output despite their exit status.
@@ -82,6 +87,13 @@ fn interpret_asusctl_output(
     stdout: String,
     stderr: &str,
 ) -> Result<String> {
+    if let Some(reason) = stdout_reported_error(&stdout) {
+        if stderr_reports_service_down(&reason) {
+            return Err(AsusctlError::ServiceNotRunning);
+        }
+        return Err(AsusctlError::CommandFailed(reason));
+    }
+
     if success {
         return Ok(stdout);
     }
@@ -109,6 +121,22 @@ fn interpret_asusctl_output(
     };
 
     Err(AsusctlError::CommandFailed(message))
+}
+
+/// The failure asusctl printed to stdout, if any.
+///
+/// asusctl exits 0 even when a command fails: it prints `Error: <reason>`
+/// followed by an info dump, or a version-mismatch notice and does nothing.
+fn stdout_reported_error(stdout: &str) -> Option<String> {
+    stdout.lines().map(str::trim).find_map(|line| {
+        if let Some(reason) = line.strip_prefix("Error:") {
+            Some(reason.trim().to_string())
+        } else if line.starts_with("Version mismatch:") {
+            Some(line.to_string())
+        } else {
+            None
+        }
+    })
 }
 
 /// True when a failed host command could not run because its program is missing.
