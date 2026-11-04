@@ -347,6 +347,7 @@ impl AboutPage {
                 features.has_dgpu_disable || features.has_gpu_mux,
             ),
             ("Slash (LED Bar)", features.has_slash),
+            ("Boot Sound", features.has_boot_sound),
         ];
 
         for (name, supported) in core_features {

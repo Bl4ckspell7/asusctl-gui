@@ -4,7 +4,7 @@ mod theme_switcher;
 mod toast;
 mod window;
 
-pub use pages::{AboutPage, AuraPage, GpuPage, PowerPage, SlashPage};
+pub use pages::{AboutPage, AuraPage, GpuPage, PowerPage, SlashPage, SystemPage};
 pub use preferences_dialog::PreferencesDialog;
 pub use theme_switcher::ThemeSwitcher;
 pub use window::AsusctlGuiWindow;
@@ -26,10 +26,18 @@ pub enum Page {
     Power,
     Gpu,
     Slash,
+    System,
 }
 
 impl Page {
-    pub const ALL: [Page; 5] = [Page::About, Page::Aura, Page::Power, Page::Gpu, Page::Slash];
+    pub const ALL: [Page; 6] = [
+        Page::About,
+        Page::Aura,
+        Page::Power,
+        Page::Gpu,
+        Page::Slash,
+        Page::System,
+    ];
 
     pub fn as_str(&self) -> &'static str {
         match self {
@@ -38,6 +46,7 @@ impl Page {
             Page::Power => "power",
             Page::Gpu => "gpu",
             Page::Slash => "slash",
+            Page::System => "system",
         }
     }
 
@@ -48,6 +57,7 @@ impl Page {
             Page::Power => "Power",
             Page::Gpu => "GPU",
             Page::Slash => "Slash",
+            Page::System => "System",
         }
     }
 
@@ -58,6 +68,7 @@ impl Page {
             Page::Power => "gnome-power-manager-symbolic",
             Page::Gpu => "video-display-symbolic",
             Page::Slash => "display-brightness-symbolic",
+            Page::System => "emblem-system-symbolic",
         }
     }
 
@@ -68,6 +79,7 @@ impl Page {
             Page::Power => 2,
             Page::Gpu => 3,
             Page::Slash => 4,
+            Page::System => 5,
         }
     }
 
@@ -78,6 +90,7 @@ impl Page {
             2 => Some(Page::Power),
             3 => Some(Page::Gpu),
             4 => Some(Page::Slash),
+            5 => Some(Page::System),
             _ => None,
         }
     }
@@ -93,6 +106,7 @@ impl TryFrom<&str> for Page {
             "power" => Ok(Page::Power),
             "gpu" => Ok(Page::Gpu),
             "slash" => Ok(Page::Slash),
+            "system" => Ok(Page::System),
             _ => Err(()),
         }
     }
@@ -101,5 +115,25 @@ impl TryFrom<&str> for Page {
 impl fmt::Display for Page {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.as_str())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn page_lookups_agree_with_all() {
+        for (position, page) in Page::ALL.iter().enumerate() {
+            assert_eq!(page.index() as usize, position, "{page} index");
+            assert_eq!(
+                Page::from_index(page.index()),
+                Some(*page),
+                "{page} from_index"
+            );
+            assert_eq!(Page::try_from(page.as_str()), Ok(*page), "{page} try_from");
+        }
+        assert_eq!(Page::from_index(Page::ALL.len() as u32), None);
+        assert_eq!(Page::try_from("unknown"), Err(()));
     }
 }

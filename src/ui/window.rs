@@ -17,7 +17,7 @@ const SIDEBAR_COLLAPSE_WIDTH: f64 = 620.0;
 
 use super::{
     AboutPage, AuraPage, GpuPage, Page, PowerPage, PreferencesDialog, Refreshable, SlashPage,
-    ThemeSwitcher,
+    SystemPage, ThemeSwitcher,
 };
 
 mod imp {
@@ -39,6 +39,7 @@ mod imp {
         pub power_page: RefCell<Option<PowerPage>>,
         pub gpu_page: RefCell<Option<GpuPage>>,
         pub slash_page: RefCell<Option<SlashPage>>,
+        pub system_page: RefCell<Option<SystemPage>>,
         // Track refresh timer source ID
         pub refresh_source_id: RefCell<Option<glib::SourceId>>,
     }
@@ -153,6 +154,11 @@ impl AsusctlGuiWindow {
             }
             Page::Slash => {
                 if let Some(p) = imp.slash_page.borrow().as_ref() {
+                    p.refresh();
+                }
+            }
+            Page::System => {
+                if let Some(p) = imp.system_page.borrow().as_ref() {
                     p.refresh();
                 }
             }
@@ -368,6 +374,7 @@ impl AsusctlGuiWindow {
         let power_page = PowerPage::new();
         let gpu_page = GpuPage::new();
         let slash_page = SlashPage::new();
+        let system_page = SystemPage::new();
 
         // Wrap each page in its own ScrolledWindow so scroll state is independent
         for (page_widget, page) in [
@@ -376,6 +383,7 @@ impl AsusctlGuiWindow {
             (power_page.upcast_ref::<gtk4::Widget>(), Page::Power),
             (gpu_page.upcast_ref::<gtk4::Widget>(), Page::Gpu),
             (slash_page.upcast_ref::<gtk4::Widget>(), Page::Slash),
+            (system_page.upcast_ref::<gtk4::Widget>(), Page::System),
         ] {
             let scroll = gtk4::ScrolledWindow::builder()
                 .hscrollbar_policy(gtk4::PolicyType::Never)
@@ -391,6 +399,7 @@ impl AsusctlGuiWindow {
         imp.power_page.replace(Some(power_page));
         imp.gpu_page.replace(Some(gpu_page));
         imp.slash_page.replace(Some(slash_page));
+        imp.system_page.replace(Some(system_page));
 
         // Swap loading screen for the full split view while retaining the toast overlay
         if let (Some(overlay), Some(split_view)) =
