@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.1] - 2026-11-04
+
+### Features
+
+- *(backend)* Read and set the boot sound
+- *(ui)* Add System page with a boot sound switch
+
+### Bug Fixes
+
+- *(backend)* Treat errors asusctl prints on stdout as failures
+
+### Documentation
+
+- Mention the boot sound in README and app metadata
+- Refresh screenshots
 ## [0.5.0] - 2026-11-03
 
 ### Features
