@@ -18,6 +18,33 @@
 
     <launchable type="desktop-id">com.github.bl4ckspell7.asusctl-gui.desktop</launchable>
 
+    <screenshots>
+        <screenshot type="default">
+            <image>https://raw.githubusercontent.com/Bl4ckspell7/asusctl-gui/main/data/screenshots/about.png</image>
+            <caption>Laptop information and supported features</caption>
+        </screenshot>
+        <screenshot>
+            <image>https://raw.githubusercontent.com/Bl4ckspell7/asusctl-gui/main/data/screenshots/aura.png</image>
+            <caption>Keyboard lighting mode, color and lighting states</caption>
+        </screenshot>
+        <screenshot>
+            <image>https://raw.githubusercontent.com/Bl4ckspell7/asusctl-gui/main/data/screenshots/power.png</image>
+            <caption>Power profiles and battery charge limit</caption>
+        </screenshot>
+        <screenshot>
+            <image>https://raw.githubusercontent.com/Bl4ckspell7/asusctl-gui/main/data/screenshots/gpu.png</image>
+            <caption>GPU mode switching</caption>
+        </screenshot>
+        <screenshot>
+            <image>https://raw.githubusercontent.com/Bl4ckspell7/asusctl-gui/main/data/screenshots/slash.png</image>
+            <caption>Slash LED bar on the display lid</caption>
+        </screenshot>
+        <screenshot>
+            <image>https://raw.githubusercontent.com/Bl4ckspell7/asusctl-gui/main/data/screenshots/system.png</image>
+            <caption>Firmware settings such as the boot sound</caption>
+        </screenshot>
+    </screenshots>
+
     <url type="homepage">https://github.com/Bl4ckspell7/asusctl-gui</url>
     <url type="bugtracker">https://github.com/Bl4ckspell7/asusctl-gui/issues</url>
     <url type="vcs-browser">https://github.com/Bl4ckspell7/asusctl-gui</url>

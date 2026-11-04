@@ -17,13 +17,17 @@ A GTK4/Libadwaita GUI for [asusctl](https://github.com/OpenGamingCollective/asus
 
 ## Screenshots
 
-|                                           About                                           |                                           Aura                                           |
-| :---------------------------------------------------------------------------------------: | :--------------------------------------------------------------------------------------: |
-| ![About](https://github.com/user-attachments/assets/faa673ac-7539-4d0b-b5ad-639d926b79b4) | ![Aura](https://github.com/user-attachments/assets/215c05e5-ad5c-4bcd-8a28-131b55112fd0) |
+|                About                 |                Aura                |
+| :----------------------------------: | :--------------------------------: |
+| ![About](data/screenshots/about.png) | ![Aura](data/screenshots/aura.png) |
 
-|                                           Power                                           |                                           Slash                                           |
-| :---------------------------------------------------------------------------------------: | :---------------------------------------------------------------------------------------: |
-| ![Power](https://github.com/user-attachments/assets/a07cf6d4-880f-4b10-9266-6b24000129bc) | ![Slash](https://github.com/user-attachments/assets/f9cd5487-a12b-4c5f-8ae9-9732e3b0c3da) |
+|                Power                 |               GPU                |
+| :----------------------------------: | :------------------------------: |
+| ![Power](data/screenshots/power.png) | ![GPU](data/screenshots/gpu.png) |
+
+|                Slash                 |                 System                 |
+| :----------------------------------: | :------------------------------------: |
+| ![Slash](data/screenshots/slash.png) | ![System](data/screenshots/system.png) |
 
 ## Requirements
 
