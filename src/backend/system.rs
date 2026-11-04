@@ -92,10 +92,11 @@ pub fn detect_features() -> &'static SupportedFeatures {
             let attrs = list_armoury_attributes();
             features.has_dgpu_disable = attrs.iter().any(|a| a == "dgpu_disable");
             features.has_gpu_mux = attrs.iter().any(|a| a == "gpu_mux_mode");
+            features.has_boot_sound = attrs.iter().any(|a| a == "boot_sound");
         }
 
         log::info!(
-            "Feature detection: asusctl={}, asusd={}, aura={}, platform={}, slash={}, charge_control={}, modes={}, aura_power_zones={}, dgpu_disable={}, gpu_mux={}",
+            "Feature detection: asusctl={}, asusd={}, aura={}, platform={}, slash={}, charge_control={}, modes={}, aura_power_zones={}, dgpu_disable={}, gpu_mux={}, boot_sound={}",
             features.asusctl_installed,
             features.asusd_running,
             features.has_aura,
@@ -106,6 +107,7 @@ pub fn detect_features() -> &'static SupportedFeatures {
             features.aura_power_zones.len(),
             features.has_dgpu_disable,
             features.has_gpu_mux,
+            features.has_boot_sound,
         );
 
         features

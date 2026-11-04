@@ -612,6 +612,7 @@ pub struct SupportedFeatures {
     pub has_armoury: bool,
     pub has_dgpu_disable: bool,
     pub has_gpu_mux: bool,
+    pub has_boot_sound: bool,
 }
 
 // ============================================================================

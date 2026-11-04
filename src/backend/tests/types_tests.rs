@@ -600,6 +600,7 @@ fn test_supported_features_default() {
     assert!(!features.has_armoury);
     assert!(!features.has_dgpu_disable);
     assert!(!features.has_gpu_mux);
+    assert!(!features.has_boot_sound);
 }
 
 // ------------------------------------------------------------------------
