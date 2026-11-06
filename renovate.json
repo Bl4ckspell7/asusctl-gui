@@ -48,6 +48,15 @@
       "schedule": ["* * * * 1"]
     },
     {
+      "description": "Renovate releases several times a day, so updating it opened a PR almost daily. Once a month, all of the 1st (UTC), as one PR.",
+      "matchPackageNames": [
+        "ghcr.io/renovatebot/renovate",
+        "renovatebot/github-action"
+      ],
+      "groupName": "renovate",
+      "schedule": ["* * 1 * *"]
+    },
+    {
       "matchManagers": ["cargo"],
       "matchPackageNames": ["gtk4", "libadwaita", "glib-build-tools"],
       "groupName": "gtk-rs"
