@@ -20,12 +20,14 @@ body = """
 {% for commit in commits %}
 - {% if commit.scope %}*({{ commit.scope }})* {% endif %}{% if commit.breaking %}[**breaking**] {% endif %}{{ commit.message | split(pat="\n") | first | upper_first }}\
 {% endfor %}
-{% endfor %}
+{% endfor %}\n
 """
 trim = true
 footer = ""
 
 [git]
+# Breaking changes (`type!:`) count even for types skipped below (build, chore, ci, …).
+protect_breaking_commits = true
 # Only deviations from git-cliff defaults live here. First match wins. The
 # `<!-- N -->` prefixes order the groups; `striptags` in the template strips them.
 commit_parsers = [

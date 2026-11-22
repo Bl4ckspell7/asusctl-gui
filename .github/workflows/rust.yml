@@ -30,6 +30,8 @@ jobs:
         run: |
           pacman-key --init
           pacman -Syu --noconfirm git gtk4 libadwaita pkgconf rust
+          # Keep only the installed package versions, so the cache does not grow.
+          pacman -Sc --noconfirm
 
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
