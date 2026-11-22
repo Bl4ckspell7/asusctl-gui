@@ -105,8 +105,13 @@ apply() {
     insert_metainfo_release "$v" "$today"
 
     # Changelog + this release's notes (Conventional Commits via git-cliff).
-    git cliff --tag "v$v" -o CHANGELOG.md
-    git cliff --tag "v$v" --unreleased --strip all >"$RELEASE_NOTES"
+    # Each release ends with a blank line; the command substitutions drop the
+    # trailing blank lines so both files end with a single newline.
+    local changelog notes
+    changelog="$(git cliff --tag "v$v")"
+    notes="$(git cliff --tag "v$v" --unreleased --strip all)"
+    printf '%s\n' "$changelog" >CHANGELOG.md
+    printf '%s\n' "$notes" >"$RELEASE_NOTES"
 }
 
 case "${1:-}" in
