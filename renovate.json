@@ -20,6 +20,14 @@
   "customManagers": [
     {
       "customType": "regex",
+      "description": "git-cliff, installed with uv in the release workflow.",
+      "managerFilePatterns": ["/^\\.github/workflows/release\\.yml$/"],
+      "matchStrings": ["git-cliff==(?<currentValue>\\d+\\.\\d+\\.\\d+)"],
+      "datasourceTemplate": "pypi",
+      "depNameTemplate": "git-cliff"
+    },
+    {
+      "customType": "regex",
       "managerFilePatterns": ["/(^|/)regen-cargo-sources\\.sh$/"],
       "matchStrings": ["install-tool python (?<currentValue>\\d+\\.\\d+\\.\\d+)"],
       "datasourceTemplate": "python-version",
