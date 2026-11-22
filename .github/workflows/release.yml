@@ -52,7 +52,7 @@ jobs:
         env:
           UV_TOOL_BIN_DIR: /usr/local/bin
         run: |
-          uv tool install 'git-cliff==2.13.1'
+          uv tool install 'git-cliff==2.14.2'
           git-cliff --version
 
       - name: Compute version
